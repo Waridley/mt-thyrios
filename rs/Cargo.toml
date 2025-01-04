@@ -11,8 +11,9 @@ skip_splash = []
 version = "0.15.0"
 
 [dependencies]
-leafwing-input-manager = "0.16.0"
 bevy-steamworks = { version = "0.12.0", git = "https://github.com/eero-lehtinen/bevy_steamworks.git", branch = "bevy-15" }
+
+leafwing-input-manager = "0.16.0"
 rand = "0.8.5"
 
 [profile.dev]

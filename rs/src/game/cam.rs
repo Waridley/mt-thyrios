@@ -1,3 +1,4 @@
+use bevy::core_pipeline::bloom::Bloom;
 use bevy::prelude::*;
 use super::mtn::{spawn_mountain, Mountain};
 use crate::state::GlobalState;
@@ -28,6 +29,7 @@ pub fn setup_cam(
 						clear_color: ClearColorConfig::Custom(Color::BLACK),
 						..default()
 					},
+					Bloom::default(),
 					Transform {
 						translation: Vec3::new(0.0, -20.0, 20.0),
 						rotation: Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::new(0.0, 1.0, -1.0).normalize()),

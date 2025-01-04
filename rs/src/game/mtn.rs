@@ -22,8 +22,8 @@ pub fn spawn_mountain(
 ) {
 	let mut mesh = ConicalFrustum {
 		radius_top: 2.0,
-		radius_bottom: 20.0,
-		height: 20.0,
+		radius_bottom: 30.0,
+		height: 30.0,
 	}.mesh()
 		.resolution(4_000)
 		.segments(200)
