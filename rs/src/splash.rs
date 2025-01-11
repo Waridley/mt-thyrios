@@ -1,16 +1,15 @@
-use std::time::Duration;
-use bevy::prelude::*;
+use crate::state::GlobalState;
 use bevy::prelude::EaseFunction::Linear;
+use bevy::prelude::*;
 use bevy::render::camera::ScalingMode;
 use bevy::time::TimerMode::Once;
-use crate::state::GlobalState;
+use std::time::Duration;
 
 pub struct SplashPlugin;
 
 impl Plugin for SplashPlugin {
 	fn build(&self, app: &mut App) {
-		app
-			.add_sub_state::<SplashState>()
+		app.add_sub_state::<SplashState>()
 			.add_systems(OnEnter(GlobalState::Splash), spawn_splash)
 			.enable_state_scoped_entities::<GlobalState>()
 			.add_systems(Update, fade_splash.run_if(in_state(GlobalState::Splash)))
@@ -18,10 +17,7 @@ impl Plugin for SplashPlugin {
 	}
 }
 
-pub fn spawn_splash(
-	mut cmds: Commands,
-	asset_server: Res<AssetServer>,
-) {
+pub fn spawn_splash(mut cmds: Commands, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SplashTimer(Timer::new(Duration::from_secs(2), Once)));
 	cmds.spawn((
 		Camera2d,
@@ -61,9 +57,16 @@ pub fn fade_splash(
 	splash_timer.tick(t.delta());
 	let progress = splash_timer.elapsed_secs() / splash_timer.duration().as_secs_f32();
 	let curve = EasingCurve::new(0.0, 1.0, Linear)
-		.reparametrize_linear(Interval::new(0.0, 0.2).unwrap()).unwrap()
-		.chain(ConstantCurve::new(Interval::new(0.2, 0.8).unwrap(), 1.0)).unwrap()
-		.chain(EasingCurve::new(1.0, 0.0, Linear).reparametrize_linear(Interval::new(0.8, 1.0).unwrap()).unwrap()).unwrap();
+		.reparametrize_linear(Interval::new(0.0, 0.2).unwrap())
+		.unwrap()
+		.chain(ConstantCurve::new(Interval::new(0.2, 0.8).unwrap(), 1.0))
+		.unwrap()
+		.chain(
+			EasingCurve::new(1.0, 0.0, Linear)
+				.reparametrize_linear(Interval::new(0.8, 1.0).unwrap())
+				.unwrap(),
+		)
+		.unwrap();
 	let fade = curve.sample(progress).expect("domain is `EVERYWHERE`");
 	q.color.set_alpha(fade);
 	if splash_timer.just_finished() {

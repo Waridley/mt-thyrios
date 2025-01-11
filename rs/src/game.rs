@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::state::GlobalState;
+use bevy::prelude::*;
 
 pub mod cam;
 pub mod env;
@@ -18,7 +18,7 @@ impl Plugin for GamePlugin {
 			mtn::MountainPlugin,
 			ocean::OceanPlugin,
 		))
-			.add_systems(OnEnter(GlobalState::InGame), setup_game);
+		.add_systems(OnEnter(GlobalState::InGame), setup_game);
 	}
 }
 
