@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::path::PathBuf;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy_atmosphere::prelude::AtmospherePlugin;
+use bevy::window::{PresentMode, PrimaryWindow};
 
 pub mod game;
 pub mod main_menu;
@@ -31,7 +31,6 @@ fn main() -> AppExit {
 	}));
 	#[cfg(feature = "tools")]
 	app.add_plugins(FrameTimeDiagnosticsPlugin);
-	app.add_plugins(AtmospherePlugin);
 	app.add_plugins((
 		main_menu::MainMenuPlugin,
 		state::GlobalStatePlugin,
@@ -46,4 +45,6 @@ fn main() -> AppExit {
 	app.run()
 }
 
-fn setup(mut cmds: Commands) {}
+fn setup(mut window: Single<&mut Window, With<PrimaryWindow>>) {
+	window.present_mode = PresentMode::AutoNoVsync;
+}

@@ -24,8 +24,8 @@ pub fn spawn_mountain(
 		height: HEIGHT,
 	}
 	.mesh()
-	.resolution(4_000)
-	.segments(200)
+	.resolution(1080)
+	.segments(100)
 	.build();
 	for (_, vals) in mesh.attributes_mut() {
 		match vals {
@@ -40,19 +40,19 @@ pub fn spawn_mountain(
 		}
 	}
 
-	// Fake grass for seeing rotation during prototyping
-	match mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL).unwrap() {
-		VertexAttributeValues::Float32x3(vec3s) => {
-			for mut norm in vec3s {
-				let mut n = Vec3::from_array(*norm);
-				n.x += random::<f32>() * 0.4 - 0.2;
-				n.y += random::<f32>() * 0.4 - 0.2;
-				n.z = random::<f32>() * 0.5;
-				*norm = n.normalize().to_array();
-			}
-		}
-		_ => unreachable!(),
-	}
+	// // Fake grass for seeing rotation during prototyping
+	// match mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL).unwrap() {
+	// 	VertexAttributeValues::Float32x3(vec3s) => {
+	// 		for mut norm in vec3s {
+	// 			let mut n = Vec3::from_array(*norm);
+	// 			n.x += random::<f32>() * 0.4 - 0.2;
+	// 			n.y += random::<f32>() * 0.4 - 0.2;
+	// 			n.z = random::<f32>() * 0.5;
+	// 			*norm = n.normalize().to_array();
+	// 		}
+	// 	}
+	// 	_ => unreachable!(),
+	// }
 
 	let colors = match mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() {
 		VertexAttributeValues::Float32x3(positions) => positions

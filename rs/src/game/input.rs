@@ -1,11 +1,11 @@
 use crate::game::cam::CamAnchor;
 use crate::state::GlobalState::InGame;
+use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use bevy::window::{PrimaryWindow, WindowMode};
 use leafwing_input_manager::prelude::*;
 use std::f32::consts::FRAC_1_SQRT_2;
 use std::slice::Windows;
-use bevy::input::keyboard::KeyboardInput;
-use bevy::window::{PrimaryWindow, WindowMode};
 
 pub struct InputPlugin;
 
@@ -14,21 +14,30 @@ impl Plugin for InputPlugin {
 		app.add_plugins(InputManagerPlugin::<GameInput>::default())
 			.insert_resource(
 				InputMap::<GameInput>::new([(GameInput::ResetCamPivot, KeyCode::ControlRight)])
-					.with_triple_axis(
-						GameInput::MoveCam,
-						VirtualDPad3D::new(
-							KeyCode::KeyE,
-							KeyCode::KeyQ,
-							KeyCode::KeyA,
-							KeyCode::KeyD,
-							KeyCode::KeyW,
-							KeyCode::KeyS,
-						),
+					.with_dual_axis(GameInput::MoveCam, VirtualDPad::wasd())
+					.with_axis(
+						GameInput::Zoom,
+						MouseScrollAxis::Y.with_processor(AxisProcessor::Sensitivity(4.0))
 					)
-					.with_dual_axis(GameInput::PivotCam, VirtualDPad::arrow_keys()),
+					.with_axis(GameInput::Zoom, VirtualAxis::new(KeyCode::KeyQ, KeyCode::KeyE))
+					.with_dual_axis(GameInput::PivotCam, VirtualDPad::arrow_keys())
+					.with_dual_axis(GameInput::PivotCam, VirtualDPad::hjkl()),
 			)
 			.init_resource::<ActionState<GameInput>>()
-			.add_systems(Update, (cam_input.run_if(in_state(InGame)), toggle_fullscreen));
+			.add_systems(
+				Update,
+				(cam_input.run_if(in_state(InGame)), toggle_fullscreen),
+			);
+	}
+}
+
+pub trait Hjkl {
+	fn hjkl() -> Self;
+}
+
+impl Hjkl for VirtualDPad {
+	fn hjkl() -> Self {
+		Self::new(KeyCode::KeyK, KeyCode::KeyJ, KeyCode::KeyH, KeyCode::KeyL)
 	}
 }
 
@@ -38,10 +47,13 @@ pub fn cam_input(
 	state: Res<ActionState<GameInput>>,
 	t: Res<Time>,
 ) {
-	let Some(data) = state.triple_axis_data(&GameInput::MoveCam) else {
-		return;
-	};
-	let input = Vec3::new(data.triple.x, -data.triple.z, data.triple.y);
+	let mv = state.dual_axis_data(&GameInput::MoveCam)
+		.map(|data| data.pair)
+		.unwrap_or(Vec2::ZERO);
+	let zoom = state.axis_data(&GameInput::Zoom)
+		.map(|data| data.value)
+		.unwrap_or(0.0);
+	let input = Vec3::new(mv.x, zoom, mv.y);
 	anchor.translation.z += input.z * t.delta_secs() * 50.0;
 	anchor.rotation *= Quat::from_rotation_z(input.x * t.delta_secs());
 
@@ -64,8 +76,10 @@ pub fn cam_input(
 
 #[derive(Actionlike, Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 pub enum GameInput {
-	#[actionlike(TripleAxis)]
+	#[actionlike(DualAxis)]
 	MoveCam,
+	#[actionlike(Axis)]
+	Zoom,
 	#[actionlike(DualAxis)]
 	PivotCam,
 	ResetCamPivot,

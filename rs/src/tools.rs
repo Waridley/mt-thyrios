@@ -64,7 +64,7 @@ pub fn adjust_storm(
 	
 	if incr != 0.0 {
 		for (_, mat) in mats.iter_mut() {
-			let intensity = (mat.extension.storm_intensity + incr * 0.5).clamp(0.2, 2.0);
+			let intensity = (mat.extension.storm_intensity + incr * 0.5).clamp(0.0, 2.0);
 			if mat.extension.storm_intensity != intensity {
 				mat.extension.storm_intensity = intensity;
 				info!(intensity);
