@@ -1,7 +1,6 @@
 use crate::state::GlobalState;
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
-use rand::random;
 use GlobalState::InGame;
 
 pub struct MountainPlugin;
@@ -28,15 +27,12 @@ pub fn spawn_mountain(
 	.segments(100)
 	.build();
 	for (_, vals) in mesh.attributes_mut() {
-		match vals {
-			VertexAttributeValues::Float32x3(vec3s) => {
-				for vec3 in vec3s {
-					let y_up = Vec3::from_array(*vec3);
-					let mut z_up = Vec3::new(y_up.x, -y_up.z, y_up.y);
-					*vec3 = z_up.to_array()
-				}
+		if let VertexAttributeValues::Float32x3(vec3s) = vals {
+			for vec3 in vec3s {
+				let y_up = Vec3::from_array(*vec3);
+				let z_up = Vec3::new(y_up.x, -y_up.z, y_up.y);
+				*vec3 = z_up.to_array()
 			}
-			_ => {}
 		}
 	}
 
@@ -66,7 +62,7 @@ pub fn spawn_mountain(
 					f32::min(l + 00.01, 1.0),
 					f32::min(l + 0.04, 1.0),
 					f32::min(l + 0.004, 1.0),
-					1.0
+					1.0,
 				)
 			})
 			.collect::<Vec<_>>(),
@@ -82,9 +78,7 @@ pub fn spawn_mountain(
 			perceptual_roughness: 0.9,
 			..default()
 		})),
-		Transform {
-			..default()
-		},
+		Transform { ..default() },
 	));
 }
 

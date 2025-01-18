@@ -1,18 +1,14 @@
+use crate::game::ocean::{OceanMaterial, OceanSurface};
 use bevy::color::palettes::basic::YELLOW;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
-use crate::game::ocean::{OceanMaterial, OceanSurface};
 
 pub struct ToolsPlugin;
 
 impl Plugin for ToolsPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(Update, (
-			toggle_fps,
-			update_fps,
-			adjust_storm,
-		));
+		app.add_systems(Update, (toggle_fps, update_fps, adjust_storm));
 	}
 }
 
@@ -25,21 +21,16 @@ pub fn toggle_fps(
 		if let Some(entity) = q {
 			cmds.entity(*entity).despawn_recursive();
 		} else {
-			cmds.spawn((
-				FpsText,
-				Text("FPS: ...".into()),
-				TextColor(YELLOW.into()),
-			));
+			cmds.spawn((FpsText, Text("FPS: ...".into()), TextColor(YELLOW.into())));
 		}
 	}
 }
 
-pub fn update_fps(
-	mut q: Option<Single<&mut Text, With<FpsText>>>,
-	diags: Res<DiagnosticsStore>,
-) {
+pub fn update_fps(mut q: Option<Single<&mut Text, With<FpsText>>>, diags: Res<DiagnosticsStore>) {
 	if let Some(text) = q.as_mut() {
-		let Some(fps) = diags.get(&FrameTimeDiagnosticsPlugin::FPS) else { return };
+		let Some(fps) = diags.get(&FrameTimeDiagnosticsPlugin::FPS) else {
+			return;
+		};
 		let Some(fps) = fps.smoothed() else { return };
 		text.0 = format!("FPS: {fps:>8.3}");
 	}
@@ -61,7 +52,7 @@ pub fn adjust_storm(
 	if keys.pressed(KeyCode::Minus) {
 		incr -= t.delta_secs();
 	}
-	
+
 	if incr != 0.0 {
 		for (_, mat) in mats.iter_mut() {
 			let intensity = (mat.extension.storm_intensity + incr * 0.5).clamp(0.0, 2.0);
@@ -71,8 +62,7 @@ pub fn adjust_storm(
 			}
 		}
 	}
-	
-	
+
 	let mut incr = 0.0;
 	if keys.pressed(KeyCode::PageUp) {
 		incr += t.delta_secs();
@@ -80,13 +70,13 @@ pub fn adjust_storm(
 	if keys.pressed(KeyCode::PageDown) {
 		incr -= t.delta_secs();
 	}
-	
+
 	if incr != 0.0 {
 		ocean.translation.z += incr * 5.0;
 		let ocean_z = ocean.translation.z;
 		info!(ocean_z);
 	}
-	
+
 	if keys.just_pressed(KeyCode::Home) {
 		ocean.translation.z = 0.0;
 	}

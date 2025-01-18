@@ -1,11 +1,8 @@
 use crate::game::cam::CamAnchor;
 use crate::state::GlobalState::InGame;
-use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowMode};
 use leafwing_input_manager::prelude::*;
-use std::f32::consts::FRAC_1_SQRT_2;
-use std::slice::Windows;
 
 pub struct InputPlugin;
 
@@ -17,9 +14,12 @@ impl Plugin for InputPlugin {
 					.with_dual_axis(GameInput::MoveCam, VirtualDPad::wasd())
 					.with_axis(
 						GameInput::Zoom,
-						MouseScrollAxis::Y.with_processor(AxisProcessor::Sensitivity(4.0))
+						MouseScrollAxis::Y.with_processor(AxisProcessor::Sensitivity(4.0)),
 					)
-					.with_axis(GameInput::Zoom, VirtualAxis::new(KeyCode::KeyQ, KeyCode::KeyE))
+					.with_axis(
+						GameInput::Zoom,
+						VirtualAxis::new(KeyCode::KeyQ, KeyCode::KeyE),
+					)
 					.with_dual_axis(GameInput::PivotCam, VirtualDPad::arrow_keys())
 					.with_dual_axis(GameInput::PivotCam, VirtualDPad::hjkl()),
 			)
@@ -47,10 +47,12 @@ pub fn cam_input(
 	state: Res<ActionState<GameInput>>,
 	t: Res<Time>,
 ) {
-	let mv = state.dual_axis_data(&GameInput::MoveCam)
+	let mv = state
+		.dual_axis_data(&GameInput::MoveCam)
 		.map(|data| data.pair)
 		.unwrap_or(Vec2::ZERO);
-	let zoom = state.axis_data(&GameInput::Zoom)
+	let zoom = state
+		.axis_data(&GameInput::Zoom)
 		.map(|data| data.value)
 		.unwrap_or(0.0);
 	let input = Vec3::new(mv.x, zoom, mv.y);

@@ -1,7 +1,7 @@
-use bevy::prelude::*;
-use std::path::PathBuf;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::prelude::*;
 use bevy::window::{PresentMode, PrimaryWindow};
+use std::path::PathBuf;
 
 pub mod game;
 pub mod main_menu;

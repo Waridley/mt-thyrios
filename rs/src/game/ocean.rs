@@ -1,15 +1,17 @@
 use crate::game::ocean::mesh::generate_ocean_mesh;
 use crate::state::GlobalState;
-use crate::util::GridMesh;
-use bevy::color::palettes::css::MIDNIGHT_BLUE;
 use bevy::math::Vec3A;
-use bevy::pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline};
+use bevy::pbr::{
+	ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
+};
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, MeshVertexBufferLayoutRef, VertexAttributeValues};
+use bevy::render::mesh::MeshVertexBufferLayoutRef;
 use bevy::render::primitives::Aabb;
-use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderRef, ShaderType, SpecializedMeshPipelineError};
-use rand::{random, Rng};
-use std::f32::consts::{FRAC_PI_3, FRAC_PI_8, SQRT_2, TAU};
+use bevy::render::render_resource::{
+	AsBindGroup, RenderPipelineDescriptor, ShaderRef, ShaderType, SpecializedMeshPipelineError,
+};
+use rand::Rng;
+use std::f32::consts::TAU;
 use GlobalState::InGame;
 
 pub mod mesh;
@@ -138,7 +140,7 @@ pub fn setup_ocean(
 				tides: [
 					Tide {
 						// Every 7th tide is larger IRL
-						frequency: 0.014285714285714287,
+						frequency: 0.014_285_714,
 						amplitude: 1.2,
 						steepness: 8.0,
 						speed: 1.0,
@@ -165,15 +167,8 @@ pub fn setup_ocean(
 				size: RADIUS,
 				storm_intensity: 0.4,
 				horizon_color: Color::BLACK.to_linear().to_vec4(),
-				
-				/// Setting this to `false` enables an experimental stylized look without standard lighting.
+
 				lighting: true,
-				/// Toggles normal calculation from the vertex shader to the fragment shader.
-				/// Fragment normals look better, but are slower to compute for the same mesh size.
-				/// Vertex normals are linearly interpolated, thus looking worse at lower densities.
-				/// A less-dense mesh with fragment normals on is usually faster for comparable quality
-				/// than a denser mesh with fragment normals, but this should probably be abstracted
-				/// into a quality option for player somehow.
 				fragment_normals: true,
 			},
 			base: StandardMaterial {
@@ -206,8 +201,15 @@ pub struct OceanMaterial {
 	pub storm_intensity: f32,
 	#[uniform(100)]
 	pub horizon_color: Vec4,
-	
+
+	/// Setting this to `false` enables an experimental stylized look without standard lighting.
 	pub lighting: bool,
+	/// Toggles normal calculation from the vertex shader to the fragment shader.
+	/// Fragment normals look better, but are slower to compute for the same mesh size.
+	/// Vertex normals are linearly interpolated, thus looking worse at lower densities.
+	/// A less-dense mesh with fragment normals on is usually faster for comparable quality
+	/// than a denser mesh with fragment normals, but this should probably be abstracted
+	/// into a quality option for player somehow.
 	pub fragment_normals: bool,
 }
 
@@ -222,7 +224,7 @@ impl MaterialExtension for OceanMaterial {
 		_pipeline: &MaterialExtensionPipeline,
 		descriptor: &mut RenderPipelineDescriptor,
 		_layout: &MeshVertexBufferLayoutRef,
-		key: MaterialExtensionKey<Self>
+		key: MaterialExtensionKey<Self>,
 	) -> Result<(), SpecializedMeshPipelineError> {
 		if key.bind_group_data.lighting {
 			descriptor.vertex.shader_defs.push("LIGHTING".into());
@@ -230,7 +232,10 @@ impl MaterialExtension for OceanMaterial {
 			fragment.shader_defs.push("LIGHTING".into());
 		}
 		if key.bind_group_data.fragment_normals {
-			descriptor.vertex.shader_defs.push("FRAGMENT_NORMALS".into());
+			descriptor
+				.vertex
+				.shader_defs
+				.push("FRAGMENT_NORMALS".into());
 			let fragment = descriptor.fragment.as_mut().unwrap();
 			fragment.shader_defs.push("FRAGMENT_NORMALS".into());
 		}
