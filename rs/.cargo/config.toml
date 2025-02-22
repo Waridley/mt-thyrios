@@ -140,7 +140,7 @@ rustflags = [
 #
 # ```
 # cargo install -f cargo-binutils
-# rustup component add llvm-tools
+# rustup component add llvm-dev_tools
 # ```
 linker = "rust-lld.exe"
 rustdocflags = ["-Clinker=rust-lld.exe"]

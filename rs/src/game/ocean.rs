@@ -1,55 +1,72 @@
 use crate::game::ocean::mesh::generate_ocean_mesh;
+use crate::game::{GameSetupKey, GameSetupLabel};
+use crate::new_game_setup_label;
+use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
 use crate::state::GlobalState;
-use bevy::math::Vec3A;
+use crate::util::MeshExt;
+use GlobalState::{InGame, LoadingGame};
+use bevy::math::{U16Vec2, Vec3A};
 use bevy::pbr::{
 	ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
+	OpaqueRendererMethod,
 };
 use bevy::prelude::*;
 use bevy::render::mesh::MeshVertexBufferLayoutRef;
 use bevy::render::primitives::Aabb;
 use bevy::render::render_resource::{
-	AsBindGroup, RenderPipelineDescriptor, ShaderRef, ShaderType, SpecializedMeshPipelineError,
+	AsBindGroup, RenderPipelineDescriptor, ShaderDefVal, ShaderRef, ShaderType,
+	SpecializedMeshPipelineError,
 };
 use rand::Rng;
 use std::f32::consts::TAU;
-use GlobalState::InGame;
 
 pub mod mesh;
 
 const WAVE_COUNT: usize = 10;
-const TIDE_COUNT: usize = 4;
+const TIDE_COUNT: usize = 5;
 
 pub struct OceanPlugin;
+
+new_game_setup_label!(OceanSpawned, single_spawn_progress::<With<OceanSurface>>);
 
 impl Plugin for OceanPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins(MaterialPlugin::<
 			ExtendedMaterial<StandardMaterial, OceanMaterial>,
 		>::default())
-			.add_systems(OnEnter(InGame), setup_ocean);
+			.insert_resource(StormIntensity(0.2))
+			.register_provider(setup_ocean.provides([OceanSpawned.intern()]))
+			.add_systems(Update, OceanMaterial::sync_storm_intensity);
 	}
 }
+
+pub const RADIUS: f32 = 400.0;
 
 pub fn setup_ocean(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
+	storm_intensity: Res<StormIntensity>,
 ) {
-	const RADIUS: f32 = 400.0;
-	const RINGS: u32 = 400;
+	const RINGS: u32 = 300;
 	const WEDGES: u32 = 1080;
 
 	let mesh = generate_ocean_mesh(RADIUS, RINGS, WEDGES);
+	let ocean_verts = mesh.positions().unwrap().len();
+	let ocean_tris = mesh.indices().unwrap().len() / 3;
+	debug!(ocean_verts, ocean_tris);
 
+	// TODO: Switch rand 0.9?
+	//    (`Rng::gen` was renamed to `Rng::random` for compatibility with edition 2024)
 	let mut rng = rand::thread_rng();
 	let mut rand_origin = move || {
 		Vec2::new(
-			(rng.gen::<f32>() * TAU * 2.0) - TAU,
-			(rng.gen::<f32>() * TAU * 2.0) - TAU,
+			(rng.r#gen::<f32>() * TAU * 2.0) - TAU,
+			(rng.r#gen::<f32>() * TAU * 2.0) - TAU,
 		)
 	};
 	let mut rng = rand::thread_rng();
-	let mut rand_direction = move || Vec2::from_angle(rng.gen::<f32>() * TAU);
+	let mut rand_direction = move || Vec2::from_angle(rng.r#gen::<f32>() * TAU);
 	cmds.spawn((
 		OceanSurface,
 		Mesh3d(meshes.add(mesh)),
@@ -60,8 +77,8 @@ pub fn setup_ocean(
 						origin: rand_origin(),
 						direction: rand_direction(),
 						frequency: 0.03,
-						amplitude: 1.0,
-						steepness: 5.0,
+						amplitude: 2.0,
+						steepness: 3.0,
 						speed: 1.0,
 					},
 					Wave {
@@ -137,41 +154,25 @@ pub fn setup_ocean(
 						speed: 3.7,
 					},
 				],
-				tides: [
-					Tide {
-						// Every 7th tide is larger IRL
-						frequency: 0.014_285_714,
-						amplitude: 1.2,
-						steepness: 8.0,
-						speed: 1.0,
-					},
-					Tide {
-						frequency: 0.1,
-						amplitude: 1.3,
-						steepness: 2.0,
-						speed: 1.0,
-					},
-					Tide {
-						frequency: 0.15,
-						amplitude: 1.1,
-						steepness: 2.0,
-						speed: 0.7,
-					},
-					Tide {
-						frequency: 0.3,
-						amplitude: 0.5,
-						steepness: 0.5,
-						speed: 0.5,
-					},
-				],
+				base_tide: Tide {
+					frequency: 0.01,
+					amplitude: 3.0,
+					steepness: 1.0,
+					speed: 0.1,
+				},
+				vertex_wave_octaves: 8,
+				vertex_tide_octaves: 4,
+				fragment_wave_octaves: 10,
+				fragment_tide_octaves: 5,
 				size: RADIUS,
-				storm_intensity: 0.4,
+				storm_intensity: **storm_intensity,
 				horizon_color: Color::BLACK.to_linear().to_vec4(),
 
-				lighting: true,
+				lighting: false,
 				fragment_normals: true,
 			},
 			base: StandardMaterial {
+				// NOTE: This needs set to Opaque if ScreenSpaceReflections get enabled
 				alpha_mode: AlphaMode::Blend,
 				perceptual_roughness: 0.0,
 				..default()
@@ -194,7 +195,15 @@ pub struct OceanMaterial {
 	#[uniform(100)]
 	pub waves: [Wave; WAVE_COUNT],
 	#[uniform(100)]
-	pub tides: [Tide; TIDE_COUNT],
+	pub base_tide: Tide,
+	#[uniform(100)]
+	pub vertex_wave_octaves: u32,
+	#[uniform(100)]
+	pub vertex_tide_octaves: u32,
+	#[uniform(100)]
+	pub fragment_wave_octaves: u32,
+	#[uniform(100)]
+	pub fragment_tide_octaves: u32,
 	#[uniform(100)]
 	pub size: f32,
 	#[uniform(100)]
@@ -226,6 +235,13 @@ impl MaterialExtension for OceanMaterial {
 		_layout: &MeshVertexBufferLayoutRef,
 		key: MaterialExtensionKey<Self>,
 	) -> Result<(), SpecializedMeshPipelineError> {
+		let wave_count = ShaderDefVal::UInt("WAVE_COUNT".into(), WAVE_COUNT as u32);
+		let tide_count = ShaderDefVal::UInt("TIDE_COUNT".into(), TIDE_COUNT as u32);
+		descriptor.vertex.shader_defs.push(wave_count.clone());
+		descriptor.vertex.shader_defs.push(tide_count.clone());
+		let fragment = descriptor.fragment.as_mut().unwrap();
+		fragment.shader_defs.push(wave_count);
+		fragment.shader_defs.push(tide_count);
 		if key.bind_group_data.lighting {
 			descriptor.vertex.shader_defs.push("LIGHTING".into());
 			let fragment = descriptor.fragment.as_mut().unwrap();
@@ -240,6 +256,19 @@ impl MaterialExtension for OceanMaterial {
 			fragment.shader_defs.push("FRAGMENT_NORMALS".into());
 		}
 		Ok(())
+	}
+}
+
+impl OceanMaterial {
+	pub fn sync_storm_intensity(
+		mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
+		intensity: Res<StormIntensity>,
+	) {
+		if intensity.is_changed() {
+			for (_, mat) in mats.iter_mut() {
+				mat.extension.storm_intensity = **intensity;
+			}
+		}
 	}
 }
 
@@ -275,3 +304,14 @@ pub struct Tide {
 	pub steepness: f32,
 	pub speed: f32,
 }
+
+#[derive(ShaderType, Debug, Clone, Copy, Reflect)]
+pub struct Fbm {
+	pub vertex_wave_octaves: u32,
+	pub vertex_tide_octaves: u32,
+	pub fragment_wave_octaves: u32,
+	pub fragment_tide_octaves: u32,
+}
+
+#[derive(Resource, Debug, Deref, DerefMut)]
+pub struct StormIntensity(pub f32);

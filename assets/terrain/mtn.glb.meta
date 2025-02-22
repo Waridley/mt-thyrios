@@ -1,0 +1,25 @@
+(
+    meta_format_version: "1.0",
+    asset: Process(
+        loader: "bevy_gltf::loader::GltfLoader",
+        processor: "bevy_asset::processor::process::LoadTransformAndSave<bevy_gltf::loader::GltfLoader, mt_thyrios::util::gltf::GltfZUpTransformer, mt_thyrios::util::gltf::GlbSaver>",
+        settings: (
+			loader_settings: (
+				load_meshes: ("MAIN_WORLD | RENDER_WORLD"),
+				load_materials: ("MAIN_WORLD | RENDER_WORLD"),
+				load_cameras: true,
+				load_lights: true,
+				include_source: false,
+			),
+			transformer_settings: (),
+			saver_settings: (
+				load_meshes: ("MAIN_WORLD | RENDER_WORLD"),
+				load_materials: ("MAIN_WORLD | RENDER_WORLD"),
+				load_cameras: true,
+				load_lights: true,
+				include_source: false,
+				format: Gltf,
+			)
+        ),
+    ),
+)

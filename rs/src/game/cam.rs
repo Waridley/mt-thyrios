@@ -1,53 +1,122 @@
-use super::mtn::{spawn_mountain, Mountain};
-use crate::state::GlobalState::{self, InGame};
+use super::mtn::{Mountain, MountainHydrated, MountainPeak};
+use crate::game::GameLoadingState::SceneBuilt;
+use crate::game::{CameraSpawned, GameSetupKey, GameSetupLabel};
+use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider};
+use crate::state::GlobalState::{self, InGame, LoadingGame};
+use crate::util::{IntoSetupStep, single_entity_exists};
 use bevy::core_pipeline::bloom::Bloom;
+use bevy::core_pipeline::experimental::taa::TemporalAntiAliasing;
 use bevy::core_pipeline::prepass::DepthPrepass;
+use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
 
 pub struct GameCamPlugin;
 
 impl Plugin for GameCamPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(OnEnter(InGame), setup_cam.after(spawn_mountain));
+		app
+			// // If ScreenSpaceReflections get enabled later, uncomment this
+			// // and set ocean AlphaBlendMode::Opaque
+			// .insert_resource(DefaultOpaqueRendererMethod::deferred())
+			.register_provider(
+				setup_cam
+					.provides([CameraSpawned.intern()])
+					.requires([MountainHydrated.intern()]),
+			)
+			.add_systems(OnEnter(InGame), activate_cam);
 	}
 }
 
-pub fn setup_cam(mut cmds: Commands, mountain: Single<Entity, With<Mountain>>) {
-	cmds.entity(*mountain).with_children(|cmds| {
-		cmds.spawn((CamAnchor, Transform::default(), Visibility::default()))
+pub fn setup_cam(
+	mut cmds: Commands,
+	peak: Single<Entity, With<MountainPeak>>,
+	mtn: Single<&Mountain>,
+) {
+	let slope = mtn.slope;
+	let anchor_z = slope * mtn.plateau_radius;
+	cmds.entity(*peak).with_children(|cmds| {
+		cmds.spawn((CamAnchor, Transform::from_translation(Vec3::Z * anchor_z)))
 			.with_children(|cmds| {
-				let rotation =
-					Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::new(0.0, 1.0, -1.0).normalize());
+				let stick_z = (-mtn.peak_elevation * 0.8) - anchor_z;
 				cmds.spawn((
-					Camera3d::default(),
-					Camera {
-						clear_color: ClearColorConfig::Custom(Color::BLACK),
-						..default()
-					},
-					Bloom::default(),
-					Transform {
-						translation: Vec3::new(0.0, -100.0, 100.0),
-						rotation,
-						..default()
-					},
-					DepthPrepass,
-				));
-				// cmds.spawn((
-				// 	SpotLight {
-				// 		intensity: 2_000_000_000.0,
-				// 		range: 1200.0 * 1200.0,
-				// 		..default()
-				// 	},
-				// 	Transform {
-				// 		translation: Vec3::new(0.0, -600.0, 600.0),
-				// 		rotation,
-				// 		..default()
-				// 	},
-				// ));
+					FrameCenter,
+					Transform::from_translation(Vec3::new(0.0, stick_z / slope, stick_z)),
+				))
+				.with_children(|cmds| {
+					let rot =
+						Quat::from_rotation_arc(Vec3::Z, Vec3::new(0.0, -3.0, 1.0).normalize());
+					cmds.spawn((
+						CamStick {
+							default_rotation: rot,
+						},
+						Transform::from_rotation(rot),
+					))
+					.with_child((
+						Camera3d::default(),
+						Camera {
+							clear_color: ClearColorConfig::Custom(Color::BLACK),
+							is_active: false,
+							..default()
+						},
+						Projection::Perspective(PerspectiveProjection {
+							fov: std::f32::consts::FRAC_PI_8,
+							..default()
+						}),
+						Bloom::default(),
+						Transform::from_translation(Vec3::new(0.0, 0.0, 150.0)),
+						DepthPrepass,
+						TemporalAntiAliasing::default(),
+						Msaa::Off,
+						// // Maybe later (be sure to set DefaultOpaqueRendererMethod::deferred()
+						// and set ocean AlphaBlendMode::Opaque if this is enabled)
+						// ScreenSpaceReflections {
+						// 	thickness: 0.0625,
+						// 	linear_march_exponent: 2.0,
+						// 	..default()
+						// },
+					));
+					cmds.spawn((
+						SpotlightStick,
+						Transform::from_rotation(Quat::from_rotation_arc(
+							Vec3::NEG_Z,
+							Vec3::new(0.0, slope, -1.0).normalize(),
+						)),
+					))
+					.with_child((
+						SpotLight {
+							intensity: 50_000_000.0,
+							range: 300.0,
+							outer_angle: std::f32::consts::FRAC_PI_4,
+							..default()
+						},
+						Transform {
+							translation: Vec3::new(0.0, 0.0, 100.0),
+							..default()
+						},
+					));
+				});
 			});
 	});
 }
 
+pub fn activate_cam(mut cam: Single<&mut Camera, With<Camera3d>>) {
+	cam.is_active = true;
+}
+
 #[derive(Component, Debug)]
-#[require(StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
 pub struct CamAnchor;
+
+#[derive(Component, Debug)]
+#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+pub struct FrameCenter;
+
+#[derive(Component, Debug)]
+#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+pub struct CamStick {
+	pub default_rotation: Quat,
+}
+
+#[derive(Component, Debug)]
+#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+pub struct SpotlightStick;

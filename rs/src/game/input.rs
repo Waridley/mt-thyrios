@@ -1,4 +1,6 @@
-use crate::game::cam::CamAnchor;
+use crate::game::cam::{CamAnchor, CamStick, FrameCenter};
+use crate::game::mtn::Mountain;
+use crate::game::ocean::{OceanSurface, StormIntensity};
 use crate::state::GlobalState::InGame;
 use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowMode};
@@ -42,8 +44,32 @@ impl Hjkl for VirtualDPad {
 }
 
 pub fn cam_input(
-	mut anchor: Single<&mut Transform, With<CamAnchor>>,
-	mut cam: Single<&mut Transform, (With<Camera3d>, Without<CamAnchor>)>,
+	mtn: Single<&Mountain>,
+	mut anchor: Single<(&mut Transform, &GlobalTransform), With<CamAnchor>>,
+	mut frame_center: Single<
+		&mut Transform,
+		(
+			With<FrameCenter>,
+			Without<CamAnchor>,
+			Without<Camera3d>,
+			Without<CamStick>,
+		),
+	>,
+	mut cam: Single<
+		&mut Transform,
+		(
+			With<Camera3d>,
+			Without<CamAnchor>,
+			Without<FrameCenter>,
+			Without<CamStick>,
+		),
+	>,
+	mut stick: Single<
+		(&mut Transform, &CamStick),
+		(Without<Camera3d>, Without<FrameCenter>, Without<CamAnchor>),
+	>,
+	ocean_surface: Single<&GlobalTransform, With<OceanSurface>>,
+	storm_intensity: Res<StormIntensity>,
 	state: Res<ActionState<GameInput>>,
 	t: Res<Time>,
 ) {
@@ -56,23 +82,36 @@ pub fn cam_input(
 		.map(|data| data.value)
 		.unwrap_or(0.0);
 	let input = Vec3::new(mv.x, zoom, mv.y);
-	anchor.translation.z += input.z * t.delta_secs() * 50.0;
-	anchor.rotation *= Quat::from_rotation_z(input.x * t.delta_secs());
+	// anchor.translation.z += input.z * t.delta_secs() * 50.0;
+	let slope = mtn.slope;
+	let dir = Vec3::new(0.0, 1.0, slope).normalize();
+	let min_z =
+		ocean_surface.translation().z - anchor.1.translation().z + (**storm_intensity * 4.0);
+	let min_y = min_z / slope;
+	let max_z = f32::max(
+		0.0,
+		ocean_surface.translation().z - anchor.1.translation().z + (**storm_intensity * 4.0),
+	);
+	frame_center.translation = Vec3::clamp(
+		frame_center.translation + input.z * dir * 0.5,
+		Vec3::new(0.0, min_y, min_z),
+		Vec3::Z * max_z,
+	);
+	anchor.0.rotation *= Quat::from_rotation_z(input.x * t.delta_secs() * 0.5);
 
 	let dist = cam.translation.length();
-	if (input.y < 0.0 && dist < 400.0) || (input.y > 0.0 && dist > 4.0) {
+	if (input.y < 0.0 && dist < 600.0) || (input.y > 0.0 && dist > 16.0) {
 		let forward = -cam.translation.normalize();
 		let speed = dist;
-		cam.translation += forward * input.y * t.delta_secs() * speed;
+		cam.translation = (cam.translation
+			+ forward * input.y * f32::min(t.delta_secs(), 0.25) * speed)
+			.clamp_length(16.0, 600.0);
 	}
 
 	if state.pressed(&GameInput::ResetCamPivot) {
-		cam.rotation = Quat::from_rotation_arc(Vec3::NEG_Z, -cam.translation.normalize());
-	} else {
-		let Some(data) = state.dual_axis_data(&GameInput::PivotCam) else {
-			return;
-		};
-		cam.rotation *= Quat::from_rotation_x(data.pair.y * t.delta_secs());
+		stick.0.rotation = stick.1.default_rotation;
+	} else if let Some(data) = state.dual_axis_data(&GameInput::PivotCam) {
+		stick.0.rotation *= Quat::from_rotation_x(-data.pair.y * t.delta_secs());
 	}
 }
 

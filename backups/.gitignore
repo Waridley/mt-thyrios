@@ -1,0 +1,3 @@
+# This folder is mainly for backing up mtn.glb while painting in case of bugs in the Gltf saving code.
+*
+!.gitignore
