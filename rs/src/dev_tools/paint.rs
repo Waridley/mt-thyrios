@@ -97,7 +97,7 @@ impl Plugin for TerrainPaintPlugin {
 				Update,
 				(
 					paint_terrain,
-					redistribute_weights,
+					redistribute_weights.run_if(resource_exists_and_changed::<TerrainWeights>),
 					apply_weights_to_mesh,
 					Paintbrush::draw_ui,
 					Paintbrush::open_close,
@@ -810,14 +810,26 @@ impl TerrainWeights {
 pub fn redistribute_weights(mut weight_map: ResMut<TerrainWeights>, tool: Res<ActiveTool>) {
 	let brush = tool.downcast_ref::<Paintbrush>();
 	for i in 0..weight_map.num_vertices {
-		let mut sum = 0u64;
 		let mut weights = weight_map
 			.map
 			.iter()
 			.map(|(k, v)| (k, v[i]))
 			.collect::<Vec<_>>();
-		for (_, weight) in weights.iter().copied() {
-			sum += weight as u64;
+		let mut sum: u64 = weights.iter().map(|(_, w)| *w as u64).sum();
+		if sum == 0 {
+			weight_map.map[TerrainKind::Dirt][i] = u16::MAX;
+			for k in &TerrainKind::VARIANTS[1..] {
+				weight_map.map[*k][i] = 0;
+			}
+			continue
+		}
+		if sum < u16::MAX as u64 {
+			let factor = u16::MAX as f64 / sum as f64;
+			for (_, w) in weights.iter_mut() {
+				*w = (*w as f64 * factor).ceil() as u16;
+			}
+			sum = weights.iter().map(|(_, w)| *w as u64).sum();
+			debug_assert!(sum >= u16::MAX as u64, ".ceil() above should prevent this");
 		}
 		while sum > u16::MAX as u64 {
 			let rem = sum - u16::MAX as u64;
