@@ -27,8 +27,13 @@ impl ActiveTool {
 		}
 	}
 
+	/// Checks if any tool is currently active.
+	pub fn any_open(&self) -> bool {
+		self.tool.is_some()
+	}
+
 	/// Closes the currently active tool, if any, and queues it for cleanup.
-	pub fn close(&mut self) {
+	pub fn close_any(&mut self) {
 		if let Some(tool) = self.tool.take() {
 			self.to_cleanup.push_back(tool);
 		}
@@ -36,7 +41,7 @@ impl ActiveTool {
 
 	/// Closes the currently active tool if it exists and is of type `T`.
 	/// Returns `Err(None)` if no tool was active, or `Err(Some(&tool))` if `T` was the wrong type.
-	pub fn try_close<T: Tool>(&mut self) -> Result<(), Option<&dyn Tool>> {
+	pub fn close<T: Tool>(&mut self) -> Result<(), Option<&dyn Tool>> {
 		if self.is::<T>() {
 			self.to_cleanup.push_back(self.tool.take().unwrap());
 			Ok(())
@@ -53,7 +58,7 @@ impl ActiveTool {
 	/// Returns the boxed active `Tool` if it is of type `T`.
 	///
 	/// **Note:** This bypasses automatic cleanup. Make sure to call [Tool::cleanup] if necessary.
-	pub fn try_take_as<T: Tool>(&mut self) -> Option<Box<T>> {
+	pub fn try_take_and_bypass_cleanup<T: Tool>(&mut self) -> Option<Box<T>> {
 		if self.tool.as_ref().is_some_and(|tool| tool.is::<T>()) {
 			Some(self.tool.take().unwrap().downcast::<T>().unwrap())
 		} else {
@@ -73,6 +78,7 @@ impl ActiveTool {
 
 	/// System that runs [Tool::cleanup] on all tools that have been removed since it last ran.
 	pub fn cleanup(mut this: ResMut<Self>, mut cmds: Commands) {
+		let this = this.bypass_change_detection();
 		for tool in this.to_cleanup.drain(..) {
 			tool.cleanup(&mut cmds);
 		}

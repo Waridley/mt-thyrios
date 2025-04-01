@@ -1,4 +1,8 @@
+use crate::game::building::placement::{
+	MtnCursor, MtnCursorMaterial, MtnCursorQuery, new_intersection_depth_map,
+};
 use crate::ui::egui;
+use crate::util::{Aabb3dMeshBuilder, AssetMut};
 use crate::{
 	game::mtn::{
 		BvhContents, BvhNode, MeshGraph, MountainAssets, MountainPeak, MountainScene, Ray3dExt,
@@ -18,9 +22,12 @@ use crate::{
 	ui::egui::{Id, Ui},
 	util::{BorrowAssetMut, MeshExt, log_errors},
 };
+use bevy::asset::{AssetPath, RenderAssetUsages};
 use bevy::input::keyboard::KeyboardInput;
+use bevy::math::VectorSpace;
 use bevy::reflect::TypeRegistry;
 use bevy::render::mesh::MeshVertexAttribute;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::{
 	color::palettes::basic::YELLOW,
 	ecs::system::SystemId,
@@ -36,7 +43,8 @@ use bevy::{
 	utils::HashMap,
 	window::PrimaryWindow,
 };
-use bevy_egui::EguiContexts;
+use bevy_egui::{EguiContext, EguiContexts, EguiRenderToTextureHandle};
+use bevy_inspector_egui::restricted_world_view::RestrictedWorldView;
 use bevy_inspector_egui::{
 	egui::emath::One,
 	inspector_egui_impls::InspectorPrimitive,
@@ -52,6 +60,7 @@ use gltf::binary::Header;
 use gltf_json::validation::{self, Checked::Valid, USize64};
 use serde::Serialize;
 use smol::{fs::File, fs::OpenOptions, io::AsyncWriteExt, io::BufWriter};
+use std::ops::{Add, Div};
 use std::time::Instant;
 use std::{
 	any::Any, borrow::Cow, cmp::Ordering, cmp::max, collections::BTreeMap, error::Error,
@@ -76,14 +85,8 @@ impl Plugin for TerrainPaintPlugin {
 			.register_type::<CurveEnd<Vec3>>()
 			.register_type::<BrushShape<f32>>()
 			.register_type::<BrushShape<Vec3>>()
-			.register_type::<TerrainWeightBrush>()
 			.register_type::<SculptSpace>()
 			.register_type::<BrushEaseFn>()
-			.insert_resource(MeshAllocatorSettings {
-				max_slab_size: 4096 * 1024 * 1024,
-				large_threshold: 1024 * 1024 * 1024,
-				..default()
-			})
 			.register_provider(
 				setup_painting
 					.provides([PaintingReady.intern()])
@@ -97,8 +100,8 @@ impl Plugin for TerrainPaintPlugin {
 				Update,
 				(
 					paint_terrain,
-					redistribute_weights.run_if(resource_exists_and_changed::<TerrainWeights>),
-					apply_weights_to_mesh,
+					(redistribute_weights, apply_weights_to_mesh)
+						.run_if(resource_exists_and_changed::<TerrainWeights>),
 					Paintbrush::draw_ui,
 					Paintbrush::open_close,
 				)
@@ -119,19 +122,30 @@ pub fn paint_terrain(
 	btns: Res<ButtonInput<MouseButton>>,
 	window: Query<&Window, With<PrimaryWindow>>,
 	mut meshes: ResMut<Assets<Mesh>>,
-	mtn: Single<(&Mesh3d, &GlobalTransform, &MeshGraph), With<Mountain>>,
-	peak: Single<&Transform, With<MountainPeak>>,
-	cam: Single<(&Camera, &GlobalTransform), With<Camera3d>>,
+	mtn: Single<(&Mesh3d, &GlobalTransform, &MeshGraph), (With<Mountain>, Without<MtnCursor>)>,
+	peak: Single<&Transform, (With<MountainPeak>, Without<MtnCursor>)>,
+	cam: Single<(&Camera, &GlobalTransform), (With<Camera3d>, Without<MtnCursor>)>,
 	tool: Res<ActiveTool>,
 	mut weight_map: ResMut<TerrainWeights>,
+	mut cursor: Single<&mut Transform, With<MtnCursor>>,
 	mut gizmos: Gizmos,
 	keys: Res<ButtonInput<KeyCode>>,
 	t: Res<Time>,
-	mut last_brush_global_pos: Local<Isometry3d>,
-	mut painted_this_stroke: Local<HashMap<usize, u16>>,
-	mut debug_bvh: Local<bool>,
-	mut debug_raycast: Local<bool>,
-	mut save_timer: Local<Option<Timer>>,
+	(
+		mut last_brush_global_pos,
+		mut painted_this_stroke,
+		mut sculpted_this_stroke,
+		mut debug_bvh,
+		mut debug_raycast,
+		mut save_timer,
+	): (
+		Local<Isometry3d>,
+		Local<HashMap<usize, u16>>,
+		Local<HashMap<usize, Vec3>>,
+		Local<bool>,
+		Local<bool>,
+		Local<Option<Timer>>,
+	),
 ) {
 	let dt = t.delta();
 	let save_timer = save_timer.get_or_insert_with(|| {
@@ -241,25 +255,37 @@ pub fn paint_terrain(
 		let tri = tri_idx.triangle(&*mesh);
 		let norm = tri.normal().unwrap();
 		let point = ray.origin + (ray.direction * t);
-		let brush_global_pos = Isometry3d {
-			rotation: Quat::from_rotation_arc(Vec3::NEG_Z, *norm),
-			translation: point.into(),
+		let rotation = match brush {
+			Paintbrush::TerrainKindWeights { .. }
+			| Paintbrush::Sculpt {
+				basis: SculptSpace::Tangent,
+				..
+			} => Quat::from_rotation_arc(Vec3::Z, *norm),
+			Paintbrush::Sculpt {
+				basis: SculptSpace::Model,
+				..
+			} => Quat::IDENTITY,
+			Paintbrush::Sculpt {
+				basis: SculptSpace::Camera,
+				..
+			} => Quat::from_rotation_arc(Vec3::Z, -*ray.direction),
 		};
+		let brush_global_pos = Isometry3d {
+			translation: point.into(),
+			rotation,
+		};
+
 		let gizmo_iso = Isometry3d {
 			rotation: brush_global_pos.rotation,
 			translation: (point + (norm * 0.1)).into(),
 		};
-		let radius = match &*brush {
-			Paintbrush::TerrainKindWeights { radius, .. } | Paintbrush::Sculpt { radius, .. } => {
-				*radius
-			}
-		};
-		gizmos.circle(gizmo_iso, radius, YELLOW);
+		cursor.translation = gizmo_iso.translation.into();
+		cursor.rotation = gizmo_iso.rotation;
 
 		if btns.pressed(MouseButton::Left) {
 			save_timer.reset();
 			brush.paint(
-				&mut *mesh,
+				&mut mesh,
 				brush_global_pos,
 				*last_brush_global_pos,
 				ray,
@@ -267,18 +293,14 @@ pub fn paint_terrain(
 				norm,
 				*xform,
 				&mut *painted_this_stroke,
+				&mut *sculpted_this_stroke,
 				weight_map.reborrow(),
 			)
 		}
 		*last_brush_global_pos = brush_global_pos;
 	} else {
-		match &*brush {
-			Paintbrush::TerrainKindWeights { radius, .. } | Paintbrush::Sculpt { radius, .. } => {
-				let gizmo_iso =
-					*last_brush_global_pos * Isometry3d::from_translation(Vec3::Z * 0.1);
-				gizmos.circle(gizmo_iso, *radius, YELLOW)
-			}
-		};
+		cursor.translation = last_brush_global_pos.translation.into();
+		cursor.rotation = last_brush_global_pos.rotation;
 	}
 
 	if save_timer.just_finished() {
@@ -307,38 +329,35 @@ fn bvh_gizmos(node: &BvhNode<TriangleIndex>, gizmos: &mut Gizmos, depth: usize) 
 	}
 }
 
-#[derive(Debug, Reflect, InspectorOptions)]
+#[derive(Debug, Clone, Reflect, InspectorOptions)]
 #[reflect(Tool, Default, InspectorOptions)]
 pub enum Paintbrush {
 	TerrainKindWeights {
-		#[reflect(default = "default_radius")]
-		#[inspector(min = f32::EPSILON)]
-		radius: f32,
-		weights: TerrainWeightBrush,
+		kind: TerrainKind,
+		shape: BrushShape<f32>,
 		erase: bool,
 	},
 	Sculpt {
-		#[reflect(default = "default_radius")]
-		radius: f32,
 		shape: BrushShape<Vec3>,
 		basis: SculptSpace,
 	},
 }
 
-impl Tool for Paintbrush {}
+impl Tool for Paintbrush {
+	fn cleanup(self: Box<Self>, cmds: &mut Commands) {
+		cmds.insert_resource(LastPaintbrush(*self));
+	}
+}
 
-fn default_radius() -> f32 {
-	3.0
+pub fn default_radius() -> f32 {
+	5.0
 }
 
 impl Default for Paintbrush {
 	fn default() -> Self {
 		Self::TerrainKindWeights {
-			radius: 3.0,
-			weights: TerrainWeightBrush {
-				kind: TerrainKind::Grass,
-				shape: default(),
-			},
+			kind: default(),
+			shape: default(),
 			erase: false,
 		}
 	}
@@ -347,7 +366,7 @@ impl Default for Paintbrush {
 impl Paintbrush {
 	pub fn paint(
 		&self,
-		mut mesh: &mut Mesh,
+		mesh: &mut AssetMut<Mesh>,
 		brush_global_pos: Isometry3d,
 		prev_brush_global_pos: Isometry3d,
 		ray: Ray3d,
@@ -355,6 +374,7 @@ impl Paintbrush {
 		hit_normal: Dir3,
 		mesh_xform: GlobalTransform,
 		painted_this_stroke: &mut HashMap<usize, u16>,
+		sculpted_this_stroke: &mut HashMap<usize, Vec3>,
 		mut weight_map: Mut<TerrainWeights>,
 	) {
 		let brush_global_pos = Vec3::from(brush_global_pos.translation);
@@ -362,7 +382,7 @@ impl Paintbrush {
 		let stroke_vector = brush_global_pos - prev_brush_global_pos;
 		let stroke_dir = stroke_vector.normalize_or_zero();
 
-		let dist_to_stroke = |vert_global_pos: Vec3| {
+		let subract_projection = |vert_global_pos: Vec3| {
 			let dot = (vert_global_pos - prev_brush_global_pos).dot(stroke_dir);
 			let projection = if dot > stroke_vector.length() {
 				brush_global_pos
@@ -371,138 +391,243 @@ impl Paintbrush {
 			} else {
 				(dot * stroke_dir) + prev_brush_global_pos
 			};
-			vert_global_pos.distance(projection)
+			vert_global_pos - projection
 		};
 
 		match self {
 			&Paintbrush::TerrainKindWeights {
-				radius,
-				ref weights,
+				kind,
+				ref shape,
 				erase,
-			} => {
-				let positions = mesh.positions().unwrap();
-				for (i, dist) in positions
-					.iter()
-					.copied()
-					.map(Vec3::from_array)
-					.enumerate()
-					.filter_map(|(i, pos)| {
-						let vert_global_pos = mesh_xform * pos;
-						let dist = dist_to_stroke(vert_global_pos);
-						(dist <= radius).then_some((i, dist))
-					}) {
-					let TerrainWeightBrush { kind, shape } = weights;
-					let w = dist / radius;
-					let falloff: f32 = shape.sample(w).unwrap();
-					let mut w = (falloff * u16::MAX as f32) as u16;
-					painted_this_stroke
-						.entry(i)
-						.and_modify(|prev| {
-							if w > *prev {
-								let diff = w - *prev;
-								*prev = w;
-								w = diff;
-							} else {
-								w = 0;
-							}
+			} => match shape {
+				BrushShape::Sphere { radius, .. } => {
+					let positions = mesh.positions().unwrap();
+					for (i, relative_point) in positions
+						.iter()
+						.copied()
+						.map(Vec3::from_array)
+						.map(|pos| {
+							let vert_global_pos = mesh_xform * pos;
+							subract_projection(vert_global_pos)
 						})
-						.or_insert(w);
-					if w > 0 {
-						let out = &mut weight_map.map[*kind][i];
-						if erase {
-							*out = out.saturating_sub(w);
-						} else {
-							*out = out.saturating_add(w);
+						.enumerate()
+					{
+						let Some(falloff) = shape.sample(relative_point) else {
+							continue;
+						};
+						let mut w = (falloff * u16::MAX as f32) as u16;
+						painted_this_stroke
+							.entry(i)
+							.and_modify(|prev| {
+								if w > *prev {
+									let diff = w - *prev;
+									*prev = w;
+									w = diff;
+								} else {
+									w = 0;
+								}
+							})
+							.or_insert(w);
+						if w > 0 {
+							let out = &mut weight_map.map[kind][i];
+							if erase {
+								*out = out.saturating_sub(w);
+							} else {
+								*out = out.saturating_add(w);
+							}
 						}
 					}
 				}
-			}
-			Paintbrush::Sculpt {
-				radius,
-				shape: falloff,
-				basis,
-			} => {
-				let n = mesh.positions().unwrap().len();
-				for i in 0..n {
-					let normal = Vec3::from_array(mesh.normals().unwrap()[i]);
-					let position = &mut mesh.positions_mut().unwrap()[i];
-					let vert_global_pos = mesh_xform * Vec3::from_array(*position);
-					let dist = dist_to_stroke(vert_global_pos);
-					if dist > *radius {
-						continue;
-					}
-					let offset = falloff.sample(dist / radius).unwrap();
-					// TODO: Should probably be per-axis, but would need to change type of `painted_this_stroke`
-					let mut w = (u16::MAX as f32 * offset.length()
-						/ falloff.range().start().length()) as u16;
-					painted_this_stroke
-						.entry(i)
-						.and_modify(|prev| {
-							if w > *prev {
-								let diff = w - *prev;
-								*prev = w;
-								w = diff;
-							} else {
-								w = 0;
-							}
-						})
-						.or_insert(w);
-					let w = w as f32 / (u16::MAX as f32 * falloff.range().start().length());
-					if w > f32::EPSILON {
-						let offset = offset * w;
-						let offset = match basis {
-							SculptSpace::Tangent => {
-								Quat::from_rotation_arc(Vec3::Z, normal) * offset
-							}
-							SculptSpace::Model => offset,
-							SculptSpace::Camera => {
-								let z = mesh_xform.rotation().inverse() * -ray.direction;
-								Quat::from_rotation_arc(Vec3::Z, *z) * offset
-							}
+				BrushShape::Image { .. } => {
+					warn!("TODO: paint image");
+				}
+			},
+			Paintbrush::Sculpt { shape, basis } => match shape {
+				BrushShape::Sphere { center, .. } => {
+					let n = mesh.positions().unwrap().len();
+					for i in 0..n {
+						let normal = Vec3::from_array(mesh.normals().unwrap()[i]);
+						let position = &mut mesh.positions_mut().unwrap()[i];
+						let vert_global_pos = mesh_xform * Vec3::from_array(*position);
+						let relative_point = subract_projection(vert_global_pos);
+						let Some(mut offset) = shape.sample(relative_point) else {
+							continue;
 						};
-						*position = (Vec3::from_array(*position) + offset).to_array()
+						// TODO: Should probably be per-axis, but would need to change type of `painted_this_stroke`
+						sculpted_this_stroke
+							.entry(i)
+							.and_modify(|prev| {
+								let diff = Vec3::max(Vec3::ZERO, offset.abs() - prev.abs());
+								*prev = Vec3::max(prev.abs(), offset.abs());
+								offset = diff * offset.signum();
+							})
+							.or_insert(offset);
+						if offset.length() > f32::EPSILON {
+							let offset = match basis {
+								SculptSpace::Tangent => {
+									Quat::from_rotation_arc(Vec3::Z, normal) * offset
+								}
+								SculptSpace::Model => offset,
+								SculptSpace::Camera => {
+									let z = mesh_xform.rotation().inverse() * -ray.direction;
+									Quat::from_rotation_arc(Vec3::Z, *z) * offset
+								}
+							};
+							*position = (Vec3::from_array(*position) + offset).to_array()
+						}
 					}
 				}
-			}
+				shape => warn!(?shape, "todo: paint"),
+			},
 		}
 	}
 
-	pub fn draw_ui(
-		mut contexts: EguiContexts,
-		mut tool: ResMut<ActiveTool>,
-		reg: Res<AppTypeRegistry>,
-	) {
-		let brush = tool.downcast_mut::<Paintbrush>();
-		let ctx = contexts.ctx_mut();
-		let was_open = brush.is_some();
-		let mut open = was_open;
-		egui::Window::new("Paintbrush")
-			.open(&mut open)
-			.show(ctx, |ui| {
-				if let Some(brush) = brush {
-					bevy_inspector_egui::reflect_inspector::ui_for_value(brush, ui, &*reg.read());
+	pub fn draw_ui(world: &mut World) {
+		let mut changed = false;
+		world.resource_scope::<ActiveTool, Option<()>>(|world: &mut World, mut tool| {
+			let mut q = world.query_filtered::<&mut EguiContext, With<PrimaryWindow>>();
+			let mut ctx = r!(q.get_single_mut(world)).clone();
+			let mut world = RestrictedWorldView::new(world);
+			let (mut reg, mut world) = r!(world.split_off_resource_typed::<AppTypeRegistry>());
+			let reg = r!(reg.internal.read().ok());
+			let ctx = ctx.get_mut();
+			let mut cx = bevy_inspector_egui::reflect_inspector::Context {
+				world: Some(world),
+				queue: None,
+			};
+			let mut inspector_ui = InspectorUi::new_no_short_circuit(&*reg, &mut cx);
+			{
+				let tool = tool.bypass_change_detection();
+				let brush = tool.downcast_mut::<Paintbrush>();
+				let was_open = brush.is_some();
+				let mut open = was_open;
+				egui::Window::new("Paintbrush")
+					.open(&mut open)
+					.show(ctx, |ui| {
+						if let Some(brush) = brush {
+							changed = inspector_ui.ui_for_reflect(brush, ui);
+						}
+					});
+				if was_open && !open {
+					r!(tool.close::<Paintbrush>());
 				}
-			});
-		if was_open && !open {
-			r!(tool.try_take_as::<Paintbrush>());
-		}
+			}
+			if changed {
+				tool.set_changed();
+			}
+			Some(())
+		});
 	}
 
 	pub fn open_close(
 		keys: Res<ButtonInput<KeyCode>>,
 		mouse: Res<ButtonInput<MouseButton>>,
 		mut tool: ResMut<ActiveTool>,
+		mut cursor: Single<MtnCursorQuery>,
+		mut meshes: ResMut<Assets<Mesh>>,
+		mut mats: ResMut<Assets<MtnCursorMaterial>>,
+		mut images: ResMut<Assets<Image>>,
+		last_brush: Option<Res<LastPaintbrush>>,
 	) {
-		let open = tool.is::<Paintbrush>();
-		if !open && keys.just_pressed(KeyCode::KeyP) {
-			tool.open(Paintbrush::default())
-		} else if open && mouse.just_pressed(MouseButton::Right) {
-			r!(tool.try_take_as::<Paintbrush>());
+		let is_active = tool.is::<Paintbrush>();
+
+		if !is_active && keys.just_pressed(KeyCode::KeyP) {
+			let brush = last_brush.map(|last| last.0.clone()).unwrap_or_default();
+			tool.open(brush);
+		} else if is_active && mouse.just_pressed(MouseButton::Right) {
+			r!(tool.close::<Paintbrush>());
+			return;
+		}
+
+		let changed = tool.is_changed();
+		if let Some(brush) = tool.downcast_ref::<Paintbrush>() {
+			if changed {
+				let (mesh, mat) =
+					brush.cursor(meshes.reborrow(), mats.reborrow(), images.reborrow());
+				cursor.mesh.0 = mesh;
+				cursor.material.0 = mat;
+			}
+			if *cursor.visibility == Visibility::Hidden {
+				*cursor.visibility = Visibility::Visible;
+			}
+		} else if !tool.any_open() && *cursor.visibility != Visibility::Hidden {
+			*cursor.visibility = Visibility::Hidden;
+		}
+	}
+
+	pub fn cursor(
+		&self,
+		mut meshes: Mut<Assets<Mesh>>,
+		mut mats: Mut<Assets<MtnCursorMaterial>>,
+		mut images: Mut<Assets<Image>>,
+	) -> (Handle<Mesh>, Handle<MtnCursorMaterial>) {
+		use bevy::color::palettes::css::*;
+		match self {
+			Paintbrush::TerrainKindWeights { kind, shape, .. } => {
+				let color = LinearRgba::from(match kind {
+					TerrainKind::Dirt => BROWN,
+					TerrainKind::Sandstone => RED,
+					TerrainKind::Limestone => YELLOW,
+					TerrainKind::Grass => GREEN,
+					TerrainKind::Granite => AQUA,
+					TerrainKind::Snow => WHITE,
+				});
+
+				match shape {
+					BrushShape::Sphere { radius, .. } => {
+						let mesh = meshes.add(Sphere::new(*radius).mesh().build());
+						let img = new_intersection_depth_map(64, |t| {
+							let color = color
+								.with_alpha(shape.sample(Vec3::Z * t * *radius).unwrap() * 2.0);
+							color.into()
+						});
+						let intersection_color_map = images.add(img);
+						let mat = MtnCursorMaterial {
+							intersection_color_map,
+							intersection_depth_mul: 18.0 / *radius,
+							..default()
+						};
+						let mat = mats.add(mat);
+						(mesh, mat)
+					}
+					BrushShape::Image { image: path } => {
+						warn!(?path, "TODO: BrushShape::Image cursor");
+						let mesh =
+							meshes.add(Aabb3dMeshBuilder::new(Vec3::ZERO, Vec3::ONE).build());
+						let img = new_intersection_depth_map(64, |t| {
+							let color =
+								color.with_alpha(if t < 1.0 / 16.0 { 1.0 } else { 0.0 } * 2.0);
+							color.into()
+						});
+						let intersection_color_map = images.add(img);
+						let mat = MtnCursorMaterial {
+							intersection_color_map,
+							..default()
+						};
+						let mat = mats.add(mat);
+						(mesh, mat)
+					}
+				}
+			}
+			Paintbrush::Sculpt { shape, .. } => match shape {
+				BrushShape::Sphere { radius, .. } => {
+					let mesh = meshes.add(Sphere::new(*radius).mesh().build());
+					(mesh, mats.add(MtnCursorMaterial::default()))
+				}
+				BrushShape::Image { .. } => {
+					warn!("TODO: BrushShape::Image cursor");
+					let mesh = meshes.add(Cuboid::default().mesh().build());
+					(mesh, mats.add(MtnCursorMaterial::default()))
+				}
+			},
 		}
 	}
 }
 
-#[derive(Debug, Default, Reflect, Clone, Copy, PartialEq, Eq)]
+#[derive(Resource, Debug, Deref, Reflect)]
+pub struct LastPaintbrush(Paintbrush);
+
+#[derive(Debug, Default, Reflect, Clone, Copy, PartialEq, Eq, Hash)]
 #[reflect(Default)]
 pub enum SculptSpace {
 	/// Move vertices in tangent space (treating their normals as +Z).
@@ -517,21 +642,19 @@ pub enum SculptSpace {
 #[derive(Debug, Clone, Reflect)]
 #[reflect(Default, InspectorOptions, where T: ZeroAndOne + Clone + Send + Sync + 'static, InspectorOptions: FromType<Self>)]
 pub enum BrushShape<T> {
-	Ease {
-		start: CurveStart<T>,
-		end: CurveEnd<T>,
+	Sphere {
+		#[reflect(default = "default_radius")]
+		radius: f32,
+		/// Value applied at the center of the sphere, (where the ray intersects the mesh).
+		center: CurveStart<T>,
+		/// Value applied at the edge of the sphere.
+		edge: CurveEnd<T>,
+		/// Ease function mapping distance to a value between `center` and `edge`.
 		ease_fn: BrushEaseFn,
 	},
-	Constant(CurveStart<T>),
-}
-
-impl<T: ZeroAndOne + Clone> BrushShape<T> {
-	pub fn range(&self) -> RangeInclusive<T> {
-		match self {
-			BrushShape::Ease { start, end, .. } => start.0.clone()..=end.0.clone(),
-			BrushShape::Constant(val) => val.0.clone()..=val.0.clone(),
-		}
-	}
+	Image {
+		image: Handle<Image>,
+	},
 }
 
 #[derive(Debug, Clone, Reflect, Deref, DerefMut)]
@@ -574,9 +697,10 @@ impl<T: ZeroAndOne> ZeroAndOne for CurveEnd<T> {
 
 impl<T: ZeroAndOne + Clone + Send + Sync + 'static> Default for BrushShape<T> {
 	fn default() -> Self {
-		Self::Ease {
-			start: CurveStart::one(),
-			end: CurveEnd::zero(),
+		Self::Sphere {
+			radius: default_radius(),
+			center: CurveStart::one(),
+			edge: CurveEnd::zero(),
 			ease_fn: BrushEaseFn(EaseFunction::CircularIn),
 		}
 	}
@@ -607,7 +731,7 @@ impl ZeroAndOne for Vec3 {
 	}
 }
 
-///
+/// Wrapper for EaseFunction to set default for Paintbrush.
 #[derive(Debug, Reflect, Clone, Copy, Deref, DerefMut)]
 #[reflect(Default)]
 pub struct BrushEaseFn(pub EaseFunction);
@@ -624,34 +748,35 @@ impl FromType<BrushShape<f32>> for InspectorOptions {
 
 		let mut inner_opts = NumberOptions::<f32>::between(0.0, 1.0).with_speed(0.002);
 		inner_opts.display = NumberDisplay::Slider;
-		let mut field_opts = InspectorOptions::default();
-		field_opts.insert(Target::Field(0), inner_opts);
 
-		// Ease
-		// Ease::start
+		// Sphere
+		// Sphere::radius
 		options.insert(
 			Target::VariantField {
 				variant_index: 0,
 				field_index: 0,
 			},
-			field_opts.clone(),
+			NumberOptions::<f32>::at_least(0.1),
 		);
-		// Ease::end
+
+		let mut curve_field_opts = InspectorOptions::default();
+		curve_field_opts.insert(Target::Field(0), inner_opts);
+
+		// Sphere::center
 		options.insert(
 			Target::VariantField {
 				variant_index: 0,
 				field_index: 1,
 			},
-			field_opts.clone(),
+			curve_field_opts.clone(),
 		);
-
-		// Constant
+		// Sphere::edge
 		options.insert(
 			Target::VariantField {
-				variant_index: 1,
-				field_index: 0,
+				variant_index: 0,
+				field_index: 2,
 			},
-			field_opts,
+			curve_field_opts.clone(),
 		);
 
 		options
@@ -662,81 +787,50 @@ impl FromType<BrushShape<Vec3>> for InspectorOptions {
 	fn from_type() -> Self {
 		let mut options = InspectorOptions::default();
 
-		// let mut inner_opts = NumberOptions::<f32>::between(
-		// 	0.0,
-		// 	1.0,
-		// ).with_speed(0.002);
-		// inner_opts.display = NumberDisplay::Slider;
-		// let mut field_opts = InspectorOptions::default();
-		// field_opts.insert(
-		// 	Target::Field(0),
-		// 	inner_opts,
-		// );
-		//
-		// // Ease
-		// // Ease::start
-		// options.insert(
-		// 	Target::VariantField {
-		// 		variant_index: 0,
-		// 		field_index: 0,
-		// 	},
-		// 	field_opts.clone(),
-		// );
-		// // Ease::end
-		// options.insert(
-		// 	Target::VariantField {
-		// 		variant_index: 0,
-		// 		field_index: 1,
-		// 	},
-		// 	field_opts.clone(),
-		// );
-		//
-		// // Constant
-		// options.insert(
-		// 	Target::VariantField {
-		// 		variant_index: 1,
-		// 		field_index: 0,
-		// 	},
-		// 	field_opts,
-		// );
+		options.insert(
+			Target::VariantField {
+				variant_index: 0,
+				field_index: 0,
+			},
+			NumberOptions::at_least(0.1),
+		);
 
 		options
 	}
 }
 
-impl<T: Clone> Curve<T> for BrushShape<T>
-where
-	EasingCurve<T>: Curve<T>,
-{
-	fn domain(&self) -> Interval {
+impl BrushShape<f32> {
+	fn sample(&self, point: Vec3) -> Option<f32> {
 		match self {
-			BrushShape::Ease {
-				start,
-				end,
+			BrushShape::Sphere {
+				radius,
+				center,
+				edge,
 				ease_fn,
-			} => EasingCurve::new(start.0.clone(), end.0.clone(), ease_fn.0.clone()).domain(),
-			BrushShape::Constant(_) => Interval::EVERYWHERE,
-		}
-	}
-
-	fn sample_unchecked(&self, t: f32) -> T {
-		match self {
-			BrushShape::Ease {
-				start,
-				end,
-				ease_fn,
-			} => EasingCurve::new(start.0.clone(), end.0.clone(), ease_fn.0.clone())
-				.sample_unchecked(t),
-			BrushShape::Constant(val) => val.0.clone(),
+			} => EasingCurve::new(center.0, edge.0, ease_fn.0).sample(point.length() / radius),
+			BrushShape::Image { .. } => {
+				warn!("TODO: Sample BrushShape::Image");
+				None
+			}
 		}
 	}
 }
 
-#[derive(Debug, Default, Reflect, Clone, InspectorOptions)]
-#[reflect(Default, InspectorOptions)]
-pub struct TerrainWeightBrush {
-	pub kind: TerrainKind,
-	pub shape: BrushShape<f32>,
+impl BrushShape<Vec3> {
+	pub fn sample(&self, point: Vec3) -> Option<Vec3> {
+		match self {
+			BrushShape::Sphere {
+				radius,
+				center,
+				edge,
+				ease_fn,
+			} => EasingCurve::new(center.0, edge.0, ease_fn.0).sample(point.length() / radius),
+			BrushShape::Image { .. } => {
+				warn!("TODO: Sample BrushShape::Image");
+				None
+			}
+		}
+	}
 }
 
 #[derive(Resource, Debug)]
@@ -821,7 +915,7 @@ pub fn redistribute_weights(mut weight_map: ResMut<TerrainWeights>, tool: Res<Ac
 			for k in &TerrainKind::VARIANTS[1..] {
 				weight_map.map[*k][i] = 0;
 			}
-			continue
+			continue;
 		}
 		if sum < u16::MAX as u64 {
 			let factor = u16::MAX as f64 / sum as f64;
@@ -833,16 +927,12 @@ pub fn redistribute_weights(mut weight_map: ResMut<TerrainWeights>, tool: Res<Ac
 		}
 		while sum > u16::MAX as u64 {
 			let rem = sum - u16::MAX as u64;
-			if let Some(Paintbrush::TerrainKindWeights {
-				weights: brush_weights,
-				..
-			}) = &brush
-			{
+			if let Some(Paintbrush::TerrainKindWeights { kind, .. }) = &brush {
 				weights.sort_by(|(ka, wa), (kb, wb)| {
-					if brush_weights.kind == *kb {
+					if *kind == *kb {
 						// Don't keep overriding brush strokes
 						Ordering::Less
-					} else if brush_weights.kind == *ka {
+					} else if *kind == *ka {
 						Ordering::Greater
 					} else {
 						wa.cmp(wb)
@@ -879,13 +969,12 @@ pub fn apply_weights_to_mesh(
 ) {
 	// Don't update mesh too quickly or framerate drops massively
 	if weight_map.is_changed() && update_timer.finished() {
-		update_timer.set_duration(Duration::from_millis(33));
+		update_timer.set_duration(Duration::from_millis(50));
 		update_timer.reset();
 	} else {
 		update_timer.tick(t.delta());
 	}
 	if update_timer.just_finished() {
-		debug!("Applying weights to mesh");
 		let mesh = meshes.get_mut(&mtn.0).unwrap();
 		for i in 0..weight_map.num_vertices {
 			let Some(VertexAttributeValues::Unorm16x4(weights)) =

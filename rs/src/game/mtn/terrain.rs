@@ -4,7 +4,7 @@ use crate::new_game_setup_label;
 use crate::setup_tracking::Progress;
 use crate::state::GlobalState;
 use crate::state::GlobalState::InGame;
-use bevy::asset::{Asset, AssetContainer, AssetServer, ErasedAssetLoader, Handle};
+use bevy::asset::{Asset, AssetContainer, AssetServer, ErasedAssetLoader, Handle, ReflectAsset};
 use bevy::image::Image;
 use bevy::pbr::{MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline};
 use bevy::prelude::*;
@@ -139,10 +139,14 @@ impl AssetCollection for TexturesMap {
 }
 
 #[derive(AsBindGroup, Asset, Debug, Clone, Reflect)]
+#[reflect(Asset)]
+#[bind_group_data(TerrainShaderDefs)]
 pub struct TerrainMaterial {
 	#[texture(101, dimension = "2d_array")]
 	#[sampler(102)]
 	pub textures: Handle<Image>,
+	// TODO: Graphics quality setting (triplanar mapping is 3x more expensive
+	pub triplanar: bool,
 }
 
 impl TerrainMaterial {
@@ -162,12 +166,20 @@ impl MaterialExtension for TerrainMaterial {
 		_pipeline: &MaterialExtensionPipeline,
 		descriptor: &mut RenderPipelineDescriptor,
 		layout: &MeshVertexBufferLayoutRef,
-		_key: MaterialExtensionKey<Self>,
+		key: MaterialExtensionKey<Self>,
 	) -> Result<(), SpecializedMeshPipelineError> {
 		descriptor.vertex.shader_defs.push(ShaderDefVal::UInt(
 			"NUM_TERRAIN_KINDS".into(),
 			TerrainKind::COUNT as u32,
 		));
+		if key.bind_group_data.triplanar {
+			descriptor
+				.fragment
+				.as_mut()
+				.unwrap()
+				.shader_defs
+				.push("TRIPLANAR".into());
+		}
 		let layout = layout.0.get_layout(&[
 			Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
 			Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
@@ -176,5 +188,18 @@ impl MaterialExtension for TerrainMaterial {
 		])?;
 		descriptor.vertex.buffers = vec![layout];
 		Ok(())
+	}
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct TerrainShaderDefs {
+	triplanar: bool,
+}
+
+impl From<&TerrainMaterial> for TerrainShaderDefs {
+	fn from(value: &TerrainMaterial) -> Self {
+		Self {
+			triplanar: value.triplanar,
+		}
 	}
 }

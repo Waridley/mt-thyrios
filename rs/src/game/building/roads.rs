@@ -1,4 +1,4 @@
-use crate::game::tools::{Tool, ReflectTool};
+use crate::game::tools::{ReflectTool, Tool};
 use bevy::prelude::*;
 
 pub struct RoadsPlugin;

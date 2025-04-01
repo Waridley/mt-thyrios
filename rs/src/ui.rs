@@ -9,6 +9,7 @@ use bevy_egui::{EguiContexts, EguiSettings};
 use egui_colors::{Colorix, tokens::ColorPreset};
 use std::any::Any;
 use std::fmt::Debug;
+use tiny_bail::prelude::r;
 
 pub struct UiPlugin;
 
@@ -41,7 +42,7 @@ pub fn setup_egui(
 		.unwrap_or(DEFAULT_SCALE);
 	debug!(scale, ?size);
 	settings.scale_factor = scale;
-	let ctx = contexts.ctx_mut();
+	let ctx = r!(contexts.try_ctx_mut());
 	ctx.set_theme(egui::Theme::Dark);
 	let waridley_theme = [
 		ColorPreset::Custom([0x8c, 0x00, 0xff]),
@@ -324,5 +325,39 @@ impl MenuStack {
 	/// Iterates through all menus mutably, starting at the bottom of the stack.
 	pub fn iter_btm_up_mut(&mut self) -> impl Iterator<Item = &mut dyn Menu> {
 		self.stack.iter_mut().map(|menu| &mut **menu)
+	}
+}
+
+pub trait MenuCommandsExt {
+	fn push_menu<T: Menu>(&mut self, menu: T);
+	fn push_menu_to_top<T: Menu>(&mut self, menu: T);
+	fn pop<T: Menu>(&mut self);
+	fn pop_any(&mut self);
+}
+
+impl MenuCommandsExt for Commands<'_, '_> {
+	fn push_menu<T: Menu>(&mut self, menu: T) {
+		self.queue(move |world: &mut World| {
+			let mut stack = r!(world.get_resource_mut::<MenuStack>());
+			r!(stack.push(menu));
+		});
+	}
+	fn push_menu_to_top<T: Menu>(&mut self, menu: T) {
+		self.queue(move |world: &mut World| {
+			let mut stack = r!(world.get_resource_mut::<MenuStack>());
+			r!(stack.push_to_top(menu));
+		})
+	}
+	fn pop<T: Menu>(&mut self) {
+		self.queue(move |world: &mut World| {
+			let mut stack = r!(world.get_resource_mut::<MenuStack>());
+			r!(stack.pop::<T>());
+		})
+	}
+	fn pop_any(&mut self) {
+		self.queue(move |world: &mut World| {
+			let mut stack = r!(world.get_resource_mut::<MenuStack>());
+			stack.pop_any();
+		})
 	}
 }

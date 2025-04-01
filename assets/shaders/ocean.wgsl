@@ -4,40 +4,56 @@
     view_transformations::position_world_to_clip,
     mesh_view_bindings::{globals, view},
     pbr_bindings::{depth_map_texture, depth_map_sampler},
+    utils::rand_vec2f
 }
 
 #ifdef PREPASS_PIPELINE
 #import bevy_pbr::{
     prepass_io::{VertexOutput, FragmentOutput},
     pbr_deferred_functions::deferred_output,
-    prepass_utils,
 }
 #else
 #import bevy_pbr::{
     forward_io::{VertexOutput, FragmentOutput},
     pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+    prepass_utils::prepass_depth,
 }
 #endif
 
 
 const MIN_BLUENESS: f32 = 0.08;
 const MIN_BRIGHTNESS: f32 = 0.02;
+const FINAL_BRIGHTNESS: f32 = 3.0;
 
 const LACUNARITY: f32 = 1.7;
 const GAIN: f32 = 0.75;
 const STEEP_GAIN: f32 = 0.87;
 const SPEED_GAIN: f32 = 1.25;
 
+const INIT_WAVE: Wave = Wave(
+	vec2<f32>(0.0, 0.0), // origin
+	0.03, // frequency
+	2.0, // amplitude
+	4.0, // steepness
+	1.0, // speed
+);
+
+const INIT_TIDE: WaveParams = WaveParams(
+	0.029, // frequency
+	2.0, // amplitude
+	1.5, // steepness
+	0.1, // speed
+);
+
 struct Wave {
 	origin: vec2<f32>,
-	direction: vec2<f32>,
 	frequency: f32,
 	amplitude: f32,
 	steepness: f32,
 	speed: f32,
 }
 
-struct Tide {
+struct WaveParams {
 	frequency: f32,
 	amplitude: f32,
 	steepness: f32,
@@ -45,8 +61,7 @@ struct Tide {
 }
 
 struct OceanMaterial {
-	waves: array<Wave, #WAVE_COUNT>,
-	base_tide: Tide,
+	seed: u32,
 	vertex_wave_octaves: u32,
 	vertex_tide_octaves: u32,
 	fragment_wave_octaves: u32,
@@ -60,12 +75,19 @@ struct OceanMaterial {
 
 @vertex
 fn vertex(
-	@location(0) position: vec3<f32>,
+	@location(0) local_pos: vec3<f32>,
 	@builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
-	let xy = position.xy;
+	let xf = get_world_from_local(instance_index);
+	// Apply rotation only. `See crate::game::ocean::ocean_rotation_follow_cam_anchor`
+	let position = mesh_position_local_to_world(
+		xf,
+		vec4<f32>(local_pos, 0.0),
+	);
+    let xy = position.xy;
 	let len = length(xy) / ocean.size;
-	var p = position;
+	// position is needed later if lighting is enabled
+	var p = position.xyz;
 	#ifdef LIGHTING
 	#ifndef FRAGMENT_NORMALS
 		var n = vec3(xy * 0.002, 0.0);
@@ -77,10 +99,11 @@ fn vertex(
 	var amp_mult = 1.0;
 	var steep_mult = 1.0;
 	var speed_mult = 1.0;
+	var state = ocean.seed;
 	for(var i: u32 = 0; i < ocean.vertex_wave_octaves; i++) {
-		var wave = ocean.waves[0];
-		wave.origin = ocean.waves[i].origin;
-		wave.direction = ocean.waves[i].direction;
+		var wave = INIT_WAVE;
+		wave.origin = (rand_vec2f(&state) * (ocean.size * 4.0)) - (ocean.size * 2.0);
+
 		
 		wave.frequency *= freq_mult;
 		wave.amplitude *= amp_mult;
@@ -101,25 +124,23 @@ fn vertex(
 		amp_sum += wave.amplitude;
 	}
 
-	// Every 7th tide is larger IRL
-	var swell: Tide;
-	swell.frequency = ocean.base_tide.frequency / 7.0;
-	swell.amplitude = ocean.base_tide.amplitude;
-	swell.steepness = ocean.base_tide.steepness * 7.0;
-	swell.speed = ocean.base_tide.speed;
-	let swell_amount = gerstner_tide(xy, swell);
-	p += swell_amount;
-	#ifdef LIGHTING
-	#ifndef FRAGMENT_NORMALS
-		n += gerstner_tide_normal(xy, swell);
-	#endif
-	#endif
-
-	// Swell shouldn't affect foam quite so much
-	// Otherwise low tide is too dark or hight tide is too white
-	amp_sum += swell_amount.z * 2.0;
-
-//	amp_sum += swell.amplitude;
+//	// Every 7th tide is larger IRL
+//	var swell: WaveParams;
+//	swell.frequency = ocean.base_tide.frequency / 7.0;
+//	swell.amplitude = ocean.base_tide.amplitude;
+//	swell.steepness = ocean.base_tide.steepness * 7.0;
+//	swell.speed = ocean.base_tide.speed;
+//	let swell_amount = gerstner_tide(xy, swell);
+//	p += swell_amount;
+//	#ifdef LIGHTING
+//	#ifndef FRAGMENT_NORMALS
+//		n += gerstner_tide_normal(xy, swell);
+//	#endif
+//	#endif
+//
+//	// Swell shouldn't affect foam quite so much
+//	// Otherwise low tide is too dark or hight tide is too white
+//	amp_sum += swell_amount.z * 2.0;
 
 	freq_mult = 1.0;
 	amp_mult = 1.0;
@@ -127,7 +148,7 @@ fn vertex(
 	speed_mult = 1.0;
 
 	for(var i: u32 = 0; i < ocean.vertex_tide_octaves; i++) {
-		var tide = ocean.base_tide;
+		var tide = INIT_TIDE;
 		
 		tide.frequency *= freq_mult;
 		tide.amplitude *= amp_mult;
@@ -155,20 +176,17 @@ fn vertex(
 	#endif
 
 	var out: VertexOutput;
-	let world_from_local = get_world_from_local(instance_index);
-	out.world_position = mesh_position_local_to_world(
-		world_from_local,
-		vec4<f32>(p, 1.0),
-	);
+	// We already rotated for world-space gerstner calculations
+	out.world_position = xf[3] + vec4<f32>(p, 1.0);
 	out.position = position_world_to_clip(out.world_position.xyz);
 
-	var peak = ((p.z / amp_sum) + 1.0) * 0.5;
-	peak = pow(peak * 1.3, 8.0);
+	let z_norm = p.z / amp_sum;
+	var peak = (z_norm * 0.5) + 0.7;
 	out.color = vec4(
-		clamp(peak, MIN_BRIGHTNESS, 1.0),
-		clamp(peak, MIN_BRIGHTNESS, 1.0),
-		clamp(peak + MIN_BLUENESS, MIN_BLUENESS, 1.0),
-		clamp(0.1 + (peak * 0.9), 0.0, 1.0),
+		clamp(pow(peak, 12.0), MIN_BRIGHTNESS, 1.0),
+		clamp(pow(peak, 5.0), MIN_BRIGHTNESS, 1.0),
+		clamp(pow(peak, 9.0) + MIN_BLUENESS, MIN_BLUENESS, 1.0),
+		clamp((z_norm * z_norm) + MIN_BRIGHTNESS, MIN_BRIGHTNESS, 1.0),
 	);
 
 	#ifdef LIGHTING
@@ -248,7 +266,7 @@ fn fragment(
 
 #ifndef PREPASS_PIPELINE
 	//<editor-fold desc="Shallow water transparency">
-	let prepass_depth = bevy_pbr::prepass_utils::prepass_depth(in.position, 0u);
+	let prepass_depth = prepass_depth(in.position, 0u);
 	let unscaled_pre_depth = prepass_depth / input.position.w;
 	let ocean_z = input.position.z / input.position.w;
 	let ocean_depth = (ocean_z - unscaled_pre_depth) / input.position.w;
@@ -257,7 +275,7 @@ fn fragment(
 	input.color.a = min(input.color.a + a + 0.5, 1.0);
 	var t = max(0.15 - ocean_depth, 0.0) / 0.15;
 	t = t * t * t;
-	input.color = mix(input.color, vec4(vec3(4.0), 1.0), t);
+	input.color = mix(input.color, vec4(2.0, 2.0, 2.0, 1.0), t);
 	//</editor-fold>
 #endif
 
@@ -280,10 +298,13 @@ fn fragment(
 	//</editor-fold>
 
 	out.color = vec4(vec2(out.color.rg * (0.2 * ocean.storm_intensity + 0.2)), out.color.ba);
+
+	out.color = vec4(out.color.rgb * FINAL_BRIGHTNESS, out.color.a);
+
 	let dist = length(in.world_position.xy) / ocean.size;
 	out.color = mix(out.color, ocean.horizon_color, dist * dist);
 
-	out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+//	out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
 
 	return out;
@@ -298,8 +319,8 @@ fn get_time(speed: f32) -> f32 {
 }
 
 fn gerstner(pos: vec2<f32>, w: Wave) -> vec3<f32> {
-	let d = w.direction;
-	let phi = get_phase(pos, d, w);
+	let d = normalize_or_zero(w.origin - pos);
+	let phi = get_phase(pos - w.origin, d, w);
 	let t = get_time(w.speed);
 	let a = w.amplitude * ocean.storm_intensity;
 
@@ -312,18 +333,18 @@ fn gerstner(pos: vec2<f32>, w: Wave) -> vec3<f32> {
 }
 
 fn normalize_or_zero(v: vec2<f32>) -> vec2<f32> {
-	let l = length(v);
-	if l == 0.0 {
+	let l2 = v.x * v.x + v.y * v.y;
+	if l2 == 0.0 {
 		return vec2(0.0);
 	} else {
-		return v / l;
+		return v / sqrt(l2);
 	}
 }
 
 const TAPER_POWER: f32 = 0.5;
 const MAX_TAPER_DIST: f32 = 20.0;
 
-fn gerstner_tide(pos: vec2<f32>, w: Tide) -> vec3<f32> {
+fn gerstner_tide(pos: vec2<f32>, w: WaveParams) -> vec3<f32> {
 	let d = normalize_or_zero(pos);
 	let phi = length(pos);
 	let t = get_time(w.speed);
@@ -340,8 +361,8 @@ fn gerstner_tide(pos: vec2<f32>, w: Tide) -> vec3<f32> {
 }
 
 fn gerstner_normal(pos: vec2<f32>, w: Wave) -> vec3<f32> {
-	let d = w.direction;
-	let phi = get_phase(pos, d, w);
+	let d = normalize_or_zero(pos - w.origin);
+	let phi = get_phase(pos - w.origin, d, w);
 	let t = get_time(w.speed);
 
 	var n = vec3(0.0);
@@ -357,7 +378,7 @@ fn gerstner_normal(pos: vec2<f32>, w: Wave) -> vec3<f32> {
 	return n;
 }
 
-fn gerstner_tide_normal(pos: vec2<f32>, w: Tide) -> vec3<f32> {
+fn gerstner_tide_normal(pos: vec2<f32>, w: WaveParams) -> vec3<f32> {
 	let d = normalize_or_zero(pos);
 	let phi = length(pos);
 	let t = -get_time(w.speed);

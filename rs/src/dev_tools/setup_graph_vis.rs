@@ -10,6 +10,7 @@ use egui_snarl::ui::{PinInfo, SnarlStyle, SnarlViewer, WireStyle};
 use egui_snarl::{InPin, InPinId, Node as SnarlNode, NodeId, OutPin, OutPinId, Snarl};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use tiny_bail::prelude::r;
 
 pub struct SetupGraphVisPlugin;
 
@@ -108,18 +109,21 @@ pub fn sync_snarl<K: SetupKey>(
 	mut snarl: ResMut<SetupGraphVisState<K>>,
 	tracker: Res<SetupTracker<K>>,
 ) {
-	let nodes = snarl
+	let mut nodes = snarl
 		.snarl
 		.nodes_ids_data()
 		.map(|(id, node)| (id, node.value))
 		.collect::<HashMap<NodeId, SystemId>>();
-	for (i, stage) in tracker.stages().into_iter().enumerate() {
-		for (j, id) in stage.into_iter().enumerate() {
-			if !nodes.iter().any(|(_, node)| *node == id) {
-				snarl.snarl.insert_node(
-					bevy_egui::egui::Pos2::new(i as f32 * 360.0, j as f32 * 64.0),
-					id,
-				);
+	if tracker.is_changed() {
+		for (i, stage) in tracker.stages().into_iter().enumerate() {
+			for (j, id) in stage.into_iter().enumerate() {
+				if !nodes.iter().any(|(_, node)| *node == id) {
+					let node = snarl.snarl.insert_node(
+						bevy_egui::egui::Pos2::new(i as f32 * 360.0, j as f32 * 64.0),
+						id,
+					);
+					nodes.insert(node, id);
+				}
 			}
 		}
 	}
@@ -128,7 +132,7 @@ pub fn sync_snarl<K: SetupKey>(
 			.iter()
 			.find_map(|(nid, node)| (*node == *id).then_some(*nid))
 		else {
-			error!("Missing Snarl node for {id:?}");
+			error!("Missing Snarl node for provider: {id:?}");
 			continue;
 		};
 		for (output_idx, provision) in info.provides().iter().enumerate() {
@@ -137,7 +141,7 @@ pub fn sync_snarl<K: SetupKey>(
 					.iter()
 					.find_map(|(nid, node)| (*node == dependant).then_some(*nid))
 				else {
-					error!("Missing Snarl node for {dependant:?}");
+					error!("Missing Snarl node for dependency: {dependant:?}");
 					continue;
 				};
 				snarl.snarl.connect(
@@ -161,7 +165,7 @@ pub fn visualize_setup_graph<K: SetupKey + Debug>(
 	mut ctx: EguiContexts,
 	mut state: Option<ResMut<SetupGraphVisState<K>>>,
 ) {
-	let ctx = ctx.ctx_mut();
+	let ctx = r!(ctx.try_ctx_mut());
 	let style = SnarlStyle {
 		pin_fill: Some(Color32::GREEN),
 		wire_width: Some(2.0),

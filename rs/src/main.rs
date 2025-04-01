@@ -1,4 +1,6 @@
 #![feature(iter_array_chunks)]
+#![feature(string_from_utf8_lossy_owned)]
+#![feature(mpmc_channel)]
 #![cfg_attr(
 	feature = "dev_tools",
 	feature(path_add_extension, generic_const_exprs)
@@ -24,7 +26,6 @@ pub mod ld;
 pub mod main_menu;
 pub mod settings_menu;
 pub mod setup_tracking;
-#[cfg(not(feature = "skip_splash"))]
 pub mod splash;
 pub mod state;
 pub mod steam;
@@ -56,7 +57,7 @@ fn main() -> AppExit {
 		})
 		.unwrap_or("imported_assets".into());
 
-	let mut def_plugs = DefaultPlugins
+	let def_plugs = DefaultPlugins
 		.set(
 			GltfPlugin::default()
 				.add_custom_vertex_attribute(
@@ -76,10 +77,17 @@ fn main() -> AppExit {
 		});
 
 	#[cfg(feature = "dev_tools")]
-	let def_plugs = def_plugs.set(LogPlugin {
-		custom_layer: bevy_console::make_layer,
-		..default()
-	});
+	let def_plugs = {
+		app.insert_resource(bevy_console::ConsoleConfiguration {
+			max_scrollback: 256,
+			..default()
+		});
+		app.add_plugins(dev_tools::log_view::LogViewPlugin);
+		def_plugs.set(LogPlugin {
+			custom_layer: dev_tools::log_view::LogViewBuffer::make_layer,
+			..default()
+		})
+	};
 
 	app.add_plugins(def_plugs);
 	#[cfg(feature = "dev_tools")]
@@ -87,21 +95,19 @@ fn main() -> AppExit {
 	app.add_plugins(TemporalAntiAliasPlugin);
 
 	app.add_plugins((
-		#[cfg(not(feature = "skip_splash"))]
 		splash::SplashPlugin,
 		main_menu::MainMenuPlugin,
 		settings_menu::SettingsMenuPlugin,
 		game::GamePlugin,
 		ld::LoadingScreenPlugin,
 		state::GlobalStatePlugin,
-		steam::SteamIntegration,
+		steam::SteamIntegrationPlugin,
 		ui::UiPlugin,
 		#[cfg(feature = "dev_tools")]
 		dev_tools::ToolsPlugin,
 	))
 	.add_systems(Startup, setup)
 	.add_event::<FinishedProcessing<Gltf>>()
-	// .add_systems(First, make_new_gltf_scenes_z_up)
 	.register_asset_processor(LoadTransformAndSave::<
 		GltfLoader,
 		GltfZUpTransformer,

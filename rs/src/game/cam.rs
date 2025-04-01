@@ -56,6 +56,7 @@ pub fn setup_cam(
 						Camera {
 							clear_color: ClearColorConfig::Custom(Color::BLACK),
 							is_active: false,
+							hdr: true,
 							..default()
 						},
 						Projection::Perspective(PerspectiveProjection {
@@ -67,8 +68,15 @@ pub fn setup_cam(
 						DepthPrepass,
 						TemporalAntiAliasing::default(),
 						Msaa::Off,
-						// // Maybe later (be sure to set DefaultOpaqueRendererMethod::deferred()
-						// and set ocean AlphaBlendMode::Opaque if this is enabled)
+						// // Maybe later
+						// //
+						// // Be sure to set DefaultOpaqueRendererMethod::deferred()
+						// // and set ocean AlphaBlendMode::Opaque if this is enabled.
+						// //
+						// // This would require a custom ocean render pass to enable shallow water
+						// // transparency, but we might want to do that anyway to fix the render order for
+						// // triangles behind the mountain.
+						// //
 						// ScreenSpaceReflections {
 						// 	thickness: 0.0625,
 						// 	linear_march_exponent: 2.0,
@@ -76,13 +84,14 @@ pub fn setup_cam(
 						// },
 					));
 					cmds.spawn((
-						SpotlightStick,
+						CamLightStick,
 						Transform::from_rotation(Quat::from_rotation_arc(
 							Vec3::NEG_Z,
 							Vec3::new(0.0, slope, -1.0).normalize(),
 						)),
 					))
 					.with_child((
+						CamLight,
 						SpotLight {
 							intensity: 50_000_000.0,
 							range: 300.0,
@@ -119,4 +128,8 @@ pub struct CamStick {
 
 #[derive(Component, Debug)]
 #[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
-pub struct SpotlightStick;
+pub struct CamLightStick;
+
+#[derive(Component, Debug)]
+#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+pub struct CamLight;

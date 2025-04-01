@@ -2,35 +2,44 @@ use crate::game::cam::{CamAnchor, CamStick, FrameCenter};
 use crate::game::mtn::Mountain;
 use crate::game::ocean::{OceanSurface, StormIntensity};
 use crate::state::GlobalState::InGame;
+use bevy::asset::ron;
 use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowMode};
 use leafwing_input_manager::prelude::*;
+use serde::{Deserialize, Serialize};
 
 pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins(InputManagerPlugin::<GameInput>::default())
-			.insert_resource(
-				InputMap::<GameInput>::new([(GameInput::ResetCamPivot, KeyCode::ControlRight)])
-					.with_dual_axis(GameInput::MoveCam, VirtualDPad::wasd())
-					.with_axis(
-						GameInput::Zoom,
-						MouseScrollAxis::Y.with_processor(AxisProcessor::Sensitivity(4.0)),
-					)
-					.with_axis(
-						GameInput::Zoom,
-						VirtualAxis::new(KeyCode::KeyQ, KeyCode::KeyE),
-					)
-					.with_dual_axis(GameInput::PivotCam, VirtualDPad::arrow_keys())
-					.with_dual_axis(GameInput::PivotCam, VirtualDPad::hjkl()),
-			)
 			.init_resource::<ActionState<GameInput>>()
+			.add_systems(Startup, setup_input)
 			.add_systems(
 				Update,
 				(cam_input.run_if(in_state(InGame)), toggle_fullscreen),
 			);
 	}
+}
+
+pub fn setup_input(mut cmds: Commands) {
+	let input_map = InputMap::<GameInput>::new([(GameInput::ResetCamPivot, KeyCode::ControlRight)])
+		.with_dual_axis(GameInput::MoveCam, VirtualDPad::wasd())
+		.with_axis(
+			GameInput::Zoom,
+			MouseScrollAxis::Y.with_processor(AxisProcessor::Sensitivity(4.0)),
+		)
+		.with_axis(
+			GameInput::Zoom,
+			VirtualAxis::new(KeyCode::KeyQ, KeyCode::KeyE),
+		)
+		.with_dual_axis(GameInput::PivotCam, VirtualDPad::arrow_keys())
+		.with_dual_axis(GameInput::PivotCam, VirtualDPad::hjkl());
+	debug!(
+		"{}",
+		ron::ser::to_string_pretty(&input_map, ron::ser::PrettyConfig::default()).unwrap()
+	);
+	cmds.insert_resource(input_map);
 }
 
 pub trait Hjkl {
@@ -115,7 +124,7 @@ pub fn cam_input(
 	}
 }
 
-#[derive(Actionlike, Debug, Clone, PartialEq, Eq, Hash, Reflect)]
+#[derive(Actionlike, Debug, Clone, PartialEq, Eq, Hash, Reflect, Serialize, Deserialize)]
 pub enum GameInput {
 	#[actionlike(DualAxis)]
 	MoveCam,

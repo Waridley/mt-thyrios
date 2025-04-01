@@ -43,6 +43,7 @@ impl Plugin for GamePlugin {
 				in_state(LoadingGame),
 				set_state_to(InGame),
 			),
+			building::BuildingPlugin,
 			cam::GameCamPlugin,
 			env::EnvironmentPlugin,
 			input::InputPlugin,

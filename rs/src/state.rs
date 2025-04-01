@@ -10,12 +10,17 @@ impl Plugin for GlobalStatePlugin {
 }
 
 #[derive(States, Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "dev_tools", derive(clap::ValueEnum))]
+#[cfg_attr(
+	feature = "dev_tools",
+	derive(clap::ValueEnum),
+	clap(rename_all = "verbatim")
+)]
 pub enum GlobalState {
 	#[cfg_attr(not(feature = "skip_splash"), default)]
 	Splash,
 	#[cfg_attr(feature = "skip_splash", default)]
 	MainMenu,
 	LoadingGame,
+	#[cfg_attr(feature = "dev_tools", value(skip))]
 	InGame,
 }

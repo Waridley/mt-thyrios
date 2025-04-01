@@ -3,6 +3,8 @@ use bevy::ecs::query::{QueryFilter, QuerySingleError};
 use bevy::ecs::schedule::SystemConfigs;
 use bevy::ecs::system::SystemParam;
 use bevy::gltf::{GltfError, GltfMesh};
+use bevy::math::Vec3A;
+use bevy::math::bounding::Aabb3d;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 use bevy::state::state::FreelyMutableState;
 use bevy::{
@@ -52,8 +54,8 @@ impl<F: Vertex3Difier> MeshBuilder for CircleGridMeshBuilder<F> {
 			PrimitiveTopology::TriangleList,
 			RenderAssetUsages::default(),
 		);
-		let mut verts = Vec::with_capacity((self.subdivisions as usize + 1) * 4);
-		let mut uvs = Vec::with_capacity((self.subdivisions as usize + 1) * 4);
+		let mut verts = Vec::with_capacity((self.subdivisions as usize + 2) * 4);
+		let mut uvs = Vec::with_capacity((self.subdivisions as usize + 2) * 4);
 		let x_verts = self.subdivisions + 2;
 		let y_verts = self.subdivisions + 2;
 		let cap = ((x_verts as f64 * y_verts as f64) * std::f64::consts::FRAC_PI_4).ceil() as usize;
@@ -162,7 +164,10 @@ impl GridMesh for Circle {
 	type Builder = CircleGridMeshBuilder;
 
 	fn grid_mesh(&self) -> Self::Builder {
-		CircleGridMeshBuilder::default()
+		CircleGridMeshBuilder {
+			circle: *self,
+			..default()
+		}
 	}
 }
 
@@ -491,51 +496,75 @@ where
 	}
 }
 
-pub struct AssetMut<'w, A: Asset> {
-	assets: Mut<'w, Assets<A>>,
-	id: AssetId<A>,
-}
+mod asset_mut {
+	use bevy::asset::{Asset, AssetId, Assets};
+	use bevy::prelude::{DetectChanges, Mut, ResMut};
 
-impl<A: Asset> AssetMut<'_, A> {
-	pub fn reborrow(&mut self) -> Mut<Assets<A>> {
-		self.assets.reborrow()
+	pub struct AssetMut<'w, A: Asset> {
+		assets: Mut<'w, Assets<A>>,
+		id: AssetId<A>,
 	}
 
-	#[cfg(feature = "track_changes")]
-	pub fn changed_by(&self) -> &std::panic::Location {
-		self.assets.changed_by()
+	impl<'w, A: Asset> AssetMut<'w, A> {
+		pub fn reborrow(&mut self) -> AssetMut<'_, A> {
+			let assets = self.assets.reborrow();
+			AssetMut {
+				assets,
+				id: self.id,
+			}
+		}
+
+		pub fn remove(mut self) -> A {
+			unsafe {
+				// SAFETY: It is only possible to acquire an `AssetMut` if the asset exists.
+				self.assets.remove(self.id).unwrap_unchecked()
+			}
+		}
+
+		#[cfg(feature = "track_changes")]
+		pub fn changed_by(&self) -> &std::panic::Location {
+			self.assets.changed_by()
+		}
 	}
-}
 
-impl<A: Asset> std::ops::Deref for AssetMut<'_, A> {
-	type Target = A;
-	fn deref(&self) -> &Self::Target {
-		self.assets.get(self.id).unwrap()
+	impl<A: Asset> std::ops::Deref for AssetMut<'_, A> {
+		type Target = A;
+		fn deref(&self) -> &Self::Target {
+			unsafe {
+				// SAFETY: It is only possible to acquire an `AssetMut` if the asset exists.
+				self.assets.get(self.id).unwrap_unchecked()
+			}
+		}
 	}
-}
 
-impl<A: Asset> std::ops::DerefMut for AssetMut<'_, A> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		self.assets.get_mut(self.id).unwrap()
+	impl<A: Asset> std::ops::DerefMut for AssetMut<'_, A> {
+		fn deref_mut(&mut self) -> &mut Self::Target {
+			unsafe {
+				// SAFETY: It is only possible to acquire an `AssetMut` if the asset exists.
+				self.assets.get_mut(self.id).unwrap_unchecked()
+			}
+		}
 	}
-}
 
-pub trait BorrowAssetMut<A: Asset> {
-	fn asset_mut(&mut self, id: AssetId<A>) -> Option<AssetMut<A>>;
-}
+	pub trait BorrowAssetMut<A: Asset> {
+		fn asset_mut(&mut self, id: AssetId<A>) -> Option<AssetMut<A>>;
+	}
 
-impl<A: Asset> BorrowAssetMut<A> for ResMut<'_, Assets<A>> {
-	fn asset_mut(&mut self, id: AssetId<A>) -> Option<AssetMut<A>> {
-		if self.contains(id) {
-			Some(AssetMut {
-				assets: self.reborrow(),
-				id,
-			})
-		} else {
-			None
+	impl<A: Asset> BorrowAssetMut<A> for ResMut<'_, Assets<A>> {
+		fn asset_mut(&mut self, id: AssetId<A>) -> Option<AssetMut<A>> {
+			if self.contains(id) {
+				Some(AssetMut {
+					assets: self.reborrow(),
+					id,
+				})
+			} else {
+				None
+			}
 		}
 	}
 }
+
+pub use asset_mut::*;
 
 #[cfg(feature = "track_changes")]
 fn debug_changed_res<R: Resource>(res: Res<R>) {
@@ -545,5 +574,97 @@ fn debug_changed_res<R: Resource>(res: Res<R>) {
 			std::any::type_name::<R>(),
 			res.changed_by()
 		)
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Aabb3dMeshBuilder {
+	aabb: Aabb3d,
+}
+
+impl Aabb3dMeshBuilder {
+	pub fn new(center: impl Into<Vec3A>, size: impl Into<Vec3A>) -> Self {
+		Self {
+			aabb: Aabb3d::new(center, size),
+		}
+	}
+	pub fn from_corners(min: impl Into<Vec3A>, max: impl Into<Vec3A>) -> Self {
+		Self {
+			aabb: Aabb3d {
+				min: min.into(),
+				max: max.into(),
+			},
+		}
+	}
+}
+
+impl From<Aabb3d> for Aabb3dMeshBuilder {
+	fn from(aabb: Aabb3d) -> Self {
+		Self { aabb }
+	}
+}
+
+impl MeshBuilder for Aabb3dMeshBuilder {
+	fn build(&self) -> Mesh {
+		// Copied from CuboidMeshBuilder, just changed min and max
+
+		let min = self.aabb.min;
+		let max = self.aabb.max;
+
+		// Suppose Y-up right hand, and camera look from +Z to -Z
+		let vertices = &[
+			// Front
+			([min.x, min.y, max.z], [0.0, 0.0, 1.0], [0.0, 0.0]),
+			([max.x, min.y, max.z], [0.0, 0.0, 1.0], [1.0, 0.0]),
+			([max.x, max.y, max.z], [0.0, 0.0, 1.0], [1.0, 1.0]),
+			([min.x, max.y, max.z], [0.0, 0.0, 1.0], [0.0, 1.0]),
+			// Back
+			([min.x, max.y, min.z], [0.0, 0.0, -1.0], [1.0, 0.0]),
+			([max.x, max.y, min.z], [0.0, 0.0, -1.0], [0.0, 0.0]),
+			([max.x, min.y, min.z], [0.0, 0.0, -1.0], [0.0, 1.0]),
+			([min.x, min.y, min.z], [0.0, 0.0, -1.0], [1.0, 1.0]),
+			// Right
+			([max.x, min.y, min.z], [1.0, 0.0, 0.0], [0.0, 0.0]),
+			([max.x, max.y, min.z], [1.0, 0.0, 0.0], [1.0, 0.0]),
+			([max.x, max.y, max.z], [1.0, 0.0, 0.0], [1.0, 1.0]),
+			([max.x, min.y, max.z], [1.0, 0.0, 0.0], [0.0, 1.0]),
+			// Left
+			([min.x, min.y, max.z], [-1.0, 0.0, 0.0], [1.0, 0.0]),
+			([min.x, max.y, max.z], [-1.0, 0.0, 0.0], [0.0, 0.0]),
+			([min.x, max.y, min.z], [-1.0, 0.0, 0.0], [0.0, 1.0]),
+			([min.x, min.y, min.z], [-1.0, 0.0, 0.0], [1.0, 1.0]),
+			// Top
+			([max.x, max.y, min.z], [0.0, 1.0, 0.0], [1.0, 0.0]),
+			([min.x, max.y, min.z], [0.0, 1.0, 0.0], [0.0, 0.0]),
+			([min.x, max.y, max.z], [0.0, 1.0, 0.0], [0.0, 1.0]),
+			([max.x, max.y, max.z], [0.0, 1.0, 0.0], [1.0, 1.0]),
+			// Bottom
+			([max.x, min.y, max.z], [0.0, -1.0, 0.0], [0.0, 0.0]),
+			([min.x, min.y, max.z], [0.0, -1.0, 0.0], [1.0, 0.0]),
+			([min.x, min.y, min.z], [0.0, -1.0, 0.0], [1.0, 1.0]),
+			([max.x, min.y, min.z], [0.0, -1.0, 0.0], [0.0, 1.0]),
+		];
+
+		let positions: Vec<_> = vertices.iter().map(|(p, _, _)| *p).collect();
+		let normals: Vec<_> = vertices.iter().map(|(_, n, _)| *n).collect();
+		let uvs: Vec<_> = vertices.iter().map(|(_, _, uv)| *uv).collect();
+
+		let indices = Indices::U32(vec![
+			0, 1, 2, 2, 3, 0, // front
+			4, 5, 6, 6, 7, 4, // back
+			8, 9, 10, 10, 11, 8, // right
+			12, 13, 14, 14, 15, 12, // left
+			16, 17, 18, 18, 19, 16, // top
+			20, 21, 22, 22, 23, 20, // bottom
+		]);
+
+		Mesh::new(
+			PrimitiveTopology::TriangleList,
+			RenderAssetUsages::default(),
+		)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+		.with_inserted_indices(indices)
 	}
 }

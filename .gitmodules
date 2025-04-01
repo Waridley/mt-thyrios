@@ -1,0 +1,4 @@
+[submodule "vend/bevy-console"]
+	path = vend/bevy-console
+	url = git@github.com:Waridley/bevy-console.git
+	branch = custom

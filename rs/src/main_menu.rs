@@ -5,6 +5,7 @@ use crate::ui::{MenuStack, egui, menu_button};
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use egui::Align2;
+use tiny_bail::prelude::r;
 
 pub struct MainMenuPlugin;
 
@@ -27,7 +28,7 @@ pub fn draw_main_menu(
 	mut exit_events: EventWriter<AppExit>,
 	mut menu_stack: ResMut<MenuStack>,
 ) {
-	let ctx = contexts.ctx_mut();
+	let ctx = r!(contexts.try_ctx_mut());
 	egui::Window::new("Main Menu")
 		.anchor(Align2::CENTER_CENTER, [0.0, 0.0])
 		.collapsible(false)
@@ -35,7 +36,13 @@ pub fn draw_main_menu(
 		.title_bar(false)
 		.show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
-				if menu_button("Play").ui(ui).clicked() {
+				let play_btn = menu_button("Play").ui(ui);
+				ui.memory_mut(|mem| {
+					if mem.focused().is_none() {
+						mem.request_focus(play_btn.id);
+					}
+				});
+				if play_btn.clicked() {
 					next_state.set(GlobalState::LoadingGame);
 				}
 				if menu_button("Settings").ui(ui).clicked() {

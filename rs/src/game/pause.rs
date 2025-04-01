@@ -2,12 +2,13 @@ use crate::settings_menu::SettingsMenu;
 use crate::state::GlobalState;
 use crate::ui::egui::text::LayoutJob;
 use crate::ui::egui::{Color32, Rounding};
-use crate::ui::{Menu, MenuStack, menu_button};
+use crate::ui::{Menu, MenuCommandsExt, MenuStack, menu_button};
 use bevy::prelude::*;
 use bevy_egui::egui::text::LayoutSection;
 use bevy_egui::egui::{Align, Align2, Margin, RichText, Stroke, Widget, WidgetText};
 use bevy_egui::{EguiContexts, egui};
 use bevy_steamworks::Input;
+use tiny_bail::prelude::r;
 
 pub struct PausePlugin;
 
@@ -24,7 +25,9 @@ impl Plugin for PausePlugin {
 }
 
 #[derive(Debug, Reflect)]
-pub struct PauseMenu {}
+pub struct PauseMenu {
+	should_focus_resume_btn: bool,
+}
 
 impl Menu for PauseMenu {}
 
@@ -60,21 +63,30 @@ impl PauseMenu {
 		mut exit_events: EventWriter<AppExit>,
 		mut menu_stack: ResMut<MenuStack>,
 	) {
-		let ctx = contexts.ctx_mut();
+		let ctx = r!(contexts.try_ctx_mut());
 
 		let was_open = menu_stack.contains::<Self>();
 		let mut open = was_open;
-		let is_top = menu_stack.top_is::<Self>();
+		let this = menu_stack.top_mut::<Self>();
 		egui::Window::new("Pause")
 			.anchor(Align2::CENTER_CENTER, [0.0, 0.0])
-			.enabled(is_top)
-			.interactable(is_top)
+			.enabled(this.is_some())
+			.interactable(this.is_some())
 			.resizable(false)
 			.collapsible(false)
 			.open(&mut open)
 			.show(ctx, |ui| {
 				ui.vertical_centered(|ui| {
-					if menu_button("Resume").ui(ui).clicked() {
+					let resume_btn = menu_button("Resume").ui(ui);
+					if let Some(this) = this {
+						if this.should_focus_resume_btn {
+							ui.ctx().memory_mut(|mem| {
+								mem.request_focus(resume_btn.id);
+							});
+							this.should_focus_resume_btn = false;
+						}
+					}
+					if resume_btn.clicked() {
 						cmds.unpause();
 					}
 					if menu_button("Main Menu").ui(ui).clicked() {
@@ -82,7 +94,7 @@ impl PauseMenu {
 						cmds.unpause();
 					}
 					if menu_button("Settings").ui(ui).clicked() {
-						menu_stack.push_to_top(SettingsMenu {}).ok();
+						cmds.push_menu_to_top(SettingsMenu {});
 					}
 					if menu_button("Quit").ui(ui).clicked() {
 						exit_events.send(AppExit::Success);
@@ -103,7 +115,9 @@ pub trait PauseGame {
 impl PauseGame for Commands<'_, '_> {
 	fn pause(&mut self) {
 		self.queue(|world: &mut World| {
-			if let Err(_) = world.resource_mut::<MenuStack>().push(PauseMenu {}) {
+			if let Err(_) = world.resource_mut::<MenuStack>().push(PauseMenu {
+				should_focus_resume_btn: true,
+			}) {
 				warn!("Game was already paused");
 			}
 			world.resource_mut::<Time<Virtual>>().pause();

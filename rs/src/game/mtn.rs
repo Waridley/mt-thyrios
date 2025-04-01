@@ -65,6 +65,7 @@ impl Plugin for MountainPlugin {
 			ExtendedMaterial<StandardMaterial, TerrainMaterial>,
 		>::default())
 			.register_type::<TerrainKind>()
+			.register_asset_reflect::<ExtendedMaterial<StandardMaterial, TerrainMaterial>>()
 			.add_systems(OnEnter(LoadingGame), |mut cmds: Commands| {
 				cmds.init_resource::<StackedTerrainTextures>()
 			})
@@ -202,6 +203,7 @@ pub fn setup_mountain(
 						mats.add(ExtendedMaterial {
 							extension: TerrainMaterial {
 								textures: assets.terrain_textures.clone(),
+								triplanar: true,
 							},
 							base: StandardMaterial {
 								reflectance: 0.25,

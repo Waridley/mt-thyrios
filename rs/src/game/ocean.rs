@@ -1,10 +1,11 @@
-use crate::game::ocean::mesh::generate_ocean_mesh;
+use crate::game::cam::CamAnchor;
 use crate::game::{GameSetupKey, GameSetupLabel};
 use crate::new_game_setup_label;
 use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
 use crate::state::GlobalState;
-use crate::util::MeshExt;
+use crate::util::{GridMesh, MeshExt};
 use GlobalState::{InGame, LoadingGame};
+use bevy::asset::ReflectAsset;
 use bevy::math::{U16Vec2, Vec3A};
 use bevy::pbr::{
 	ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
@@ -20,11 +21,6 @@ use bevy::render::render_resource::{
 use rand::Rng;
 use std::f32::consts::TAU;
 
-pub mod mesh;
-
-const WAVE_COUNT: usize = 10;
-const TIDE_COUNT: usize = 5;
-
 pub struct OceanPlugin;
 
 new_game_setup_label!(OceanSpawned, single_spawn_progress::<With<OceanSurface>>);
@@ -34,9 +30,17 @@ impl Plugin for OceanPlugin {
 		app.add_plugins(MaterialPlugin::<
 			ExtendedMaterial<StandardMaterial, OceanMaterial>,
 		>::default())
+			.register_asset_reflect::<ExtendedMaterial<StandardMaterial, OceanMaterial>>()
 			.insert_resource(StormIntensity(0.2))
 			.register_provider(setup_ocean.provides([OceanSpawned.intern()]))
-			.add_systems(Update, OceanMaterial::sync_storm_intensity);
+			.add_systems(
+				Update,
+				(
+					OceanMaterial::sync_storm_intensity,
+					ocean_rotation_follow_cam_anchor.after(crate::game::input::cam_input),
+				)
+					.run_if(in_state(InGame)),
+			);
 	}
 }
 
@@ -48,118 +52,34 @@ pub fn setup_ocean(
 	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
 	storm_intensity: Res<StormIntensity>,
 ) {
-	const RINGS: u32 = 300;
-	const WEDGES: u32 = 1080;
+	// TODO: Graphics quality setting
+	const SUBDIVS: u32 = 1024;
 
-	let mesh = generate_ocean_mesh(RADIUS, RINGS, WEDGES);
+	// TODO PERF: make a baseball field-shaped mesh with larger triangles further away
+	let mut mesh = Circle::new(RADIUS)
+		.grid_mesh()
+		.subdivisions(SUBDIVS)
+		// Order back-to-front since the transparent mesh pipeline does not do z buffer culling
+		.map_vertices(|v: Vec2| Vec3::new(v.x, -v.y, 0.0))
+		.build()
+		.with_inverted_winding()
+		.unwrap();
+
+	let verts = mesh.count_vertices();
+	mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[1.0; 4]; verts]);
 	let ocean_verts = mesh.positions().unwrap().len();
 	let ocean_tris = mesh.indices().unwrap().len() / 3;
 	debug!(ocean_verts, ocean_tris);
 
-	// TODO: Switch rand 0.9?
-	//    (`Rng::gen` was renamed to `Rng::random` for compatibility with edition 2024)
-	let mut rng = rand::thread_rng();
-	let mut rand_origin = move || {
-		Vec2::new(
-			(rng.r#gen::<f32>() * TAU * 2.0) - TAU,
-			(rng.r#gen::<f32>() * TAU * 2.0) - TAU,
-		)
-	};
-	let mut rng = rand::thread_rng();
-	let mut rand_direction = move || Vec2::from_angle(rng.r#gen::<f32>() * TAU);
+	let seed = rand::random::<u32>();
+	debug!(seed);
 	cmds.spawn((
+		Name::new("OceanSurface"),
 		OceanSurface,
 		Mesh3d(meshes.add(mesh)),
 		MeshMaterial3d(mats.add(ExtendedMaterial {
 			extension: OceanMaterial {
-				waves: [
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 0.03,
-						amplitude: 2.0,
-						steepness: 3.0,
-						speed: 1.0,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 0.1,
-						amplitude: 0.9,
-						steepness: 4.0,
-						speed: 1.0,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 0.15,
-						amplitude: 0.8,
-						steepness: 2.0,
-						speed: 0.7,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 0.3,
-						amplitude: 0.7,
-						steepness: 1.0,
-						speed: 1.1,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 0.7,
-						amplitude: 0.3,
-						steepness: 0.7,
-						speed: 1.3,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 1.3,
-						amplitude: 0.2,
-						steepness: 0.5,
-						speed: 1.7,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 1.7,
-						amplitude: 0.1,
-						steepness: 0.3,
-						speed: 1.9,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 1.9,
-						amplitude: 0.07,
-						steepness: 0.3,
-						speed: 2.3,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 2.3,
-						amplitude: 0.05,
-						steepness: 0.3,
-						speed: 2.9,
-					},
-					Wave {
-						origin: rand_origin(),
-						direction: rand_direction(),
-						frequency: 2.9,
-						amplitude: 0.05,
-						steepness: 0.3,
-						speed: 3.7,
-					},
-				],
-				base_tide: Tide {
-					frequency: 0.01,
-					amplitude: 3.0,
-					steepness: 1.0,
-					speed: 0.1,
-				},
+				seed,
 				vertex_wave_octaves: 8,
 				vertex_tide_octaves: 4,
 				fragment_wave_octaves: 10,
@@ -190,12 +110,11 @@ pub fn setup_ocean(
 pub struct OceanSurface;
 
 #[derive(AsBindGroup, Asset, Debug, Clone, Reflect)]
+#[reflect(Asset)]
 #[bind_group_data(OceanShaderDefs)]
 pub struct OceanMaterial {
 	#[uniform(100)]
-	pub waves: [Wave; WAVE_COUNT],
-	#[uniform(100)]
-	pub base_tide: Tide,
+	pub seed: u32,
 	#[uniform(100)]
 	pub vertex_wave_octaves: u32,
 	#[uniform(100)]
@@ -235,13 +154,6 @@ impl MaterialExtension for OceanMaterial {
 		_layout: &MeshVertexBufferLayoutRef,
 		key: MaterialExtensionKey<Self>,
 	) -> Result<(), SpecializedMeshPipelineError> {
-		let wave_count = ShaderDefVal::UInt("WAVE_COUNT".into(), WAVE_COUNT as u32);
-		let tide_count = ShaderDefVal::UInt("TIDE_COUNT".into(), TIDE_COUNT as u32);
-		descriptor.vertex.shader_defs.push(wave_count.clone());
-		descriptor.vertex.shader_defs.push(tide_count.clone());
-		let fragment = descriptor.fragment.as_mut().unwrap();
-		fragment.shader_defs.push(wave_count);
-		fragment.shader_defs.push(tide_count);
 		if key.bind_group_data.lighting {
 			descriptor.vertex.shader_defs.push("LIGHTING".into());
 			let fragment = descriptor.fragment.as_mut().unwrap();
@@ -315,3 +227,13 @@ pub struct Fbm {
 
 #[derive(Resource, Debug, Deref, DerefMut)]
 pub struct StormIntensity(pub f32);
+
+/// A bit of a hack to keep triangles ordered back-to-front from the camera's view.
+pub fn ocean_rotation_follow_cam_anchor(
+	anchor: Single<Ref<GlobalTransform>, With<CamAnchor>>,
+	mut ocean: Single<&mut Transform, With<OceanSurface>>,
+) {
+	if anchor.is_changed() {
+		ocean.rotation = anchor.rotation();
+	}
+}

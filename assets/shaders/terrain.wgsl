@@ -70,15 +70,18 @@ fn fragment(
 ) -> FragmentOutput {
 	var pbr_input = pbr_input_from_standard_material(in, is_front);
 
-	let width = f32(textureDimensions(textures).x);
-
-	// Triplanar splatting
+	// Texture splatting
+	#ifdef TRIPLANAR
 	let n = in.world_normal;
 	let x = abs(dot(n, vec3(1.0, 0.0, 0.0)));
 	let y = abs(dot(n, vec3(0.0, 1.0, 0.0)));
 	let z = abs(dot(n, vec3(0.0, 0.0, 1.0)));
+	#endif
+	let width = f32(textureDimensions(textures).x);
 	let coord = (in.world_position.xyz * 64.0) / width;
+
 	let uv = (coord + vec3(1.0)) * 0.5;
+
 	var color = vec4(0.0, 0.0, 0.0, 1.0);
 	var weights: array<f32, NUM_KINDS>;
 	for (var i = 0u; i < NUM_KINDS; i++) {
@@ -91,10 +94,14 @@ fn fragment(
 		weights[i] = weight;
 	}
 	for (var i = 0u; i < NUM_KINDS; i++) {
-		let x_color = textureSample(textures, textures_sampler, vec2(uv.y, uv.z), i);
-		let y_color = textureSample(textures, textures_sampler, vec2(uv.x, uv.z), i);
-		let z_color = textureSample(textures, textures_sampler, vec2(uv.x, uv.y), i);
-		color += ((x * x_color) + (y * y_color) + (z * z_color)) * weights[i];
+		#ifdef TRIPLANAR
+			let x_color = textureSample(textures, textures_sampler, vec2(uv.y, uv.z), i);
+			let y_color = textureSample(textures, textures_sampler, vec2(uv.x, uv.z), i);
+			let z_color = textureSample(textures, textures_sampler, vec2(uv.x, uv.y), i);
+			color += ((x * x_color) + (y * y_color) + (z * z_color)) * weights[i];
+		#else
+			color += textureSample(textures, textures_sampler, vec2(uv.x, uv.y), i) * weights[i];
+		#endif
 	}
 	pbr_input.material.base_color *= color;
 

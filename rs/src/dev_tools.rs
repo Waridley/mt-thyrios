@@ -16,6 +16,7 @@ use setup_graph_vis::SetupGraphVisPlugin;
 use smolset::SmolSet;
 
 pub mod console;
+pub mod log_view;
 pub mod paint;
 pub mod setup_graph_vis;
 
