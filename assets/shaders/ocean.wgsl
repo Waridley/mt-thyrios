@@ -23,7 +23,7 @@
 
 const MIN_BLUENESS: f32 = 0.08;
 const MIN_BRIGHTNESS: f32 = 0.02;
-const FINAL_BRIGHTNESS: f32 = 3.0;
+const FINAL_BRIGHTNESS: f32 = 2.0;
 
 const LACUNARITY: f32 = 1.7;
 const GAIN: f32 = 0.75;

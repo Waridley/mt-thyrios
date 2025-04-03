@@ -1,9 +1,12 @@
 use crate::dev_tools::setup_graph_vis::SetupGraphVisState;
 use crate::game::GameSetupKey;
-use crate::game::ocean::{OceanSurface, StormIntensity};
+use crate::game::ocean::{OceanMaterial, OceanSurface, Storm};
 use crate::state::GlobalState;
 use crate::ui::egui::Align2;
-use bevy::prelude::*;
+use bevy::{
+	prelude::*,
+	pbr::ExtendedMaterial,
+};
 use bevy_console::{
 	AddConsoleCommand, BevyLogBuffer, ConsoleCommand, ConsoleConfiguration, ConsolePlugin, reply,
 	reply_failed,
@@ -28,7 +31,8 @@ impl Plugin for DevConsolePlugin {
 		.add_console_command::<SetNextState, _>(set_next_state)
 		.add_console_command::<ViewSetupGraph, _>(view_setup_graph)
 		.add_console_command::<SetLight, _>(set_light)
-		.add_console_command::<AdjustOcean, _>(adjust_ocean);
+		.add_console_command::<AdjustOcean, _>(adjust_ocean)
+		.add_console_command::<AdjustStorm, _>(adjust_storm);
 	}
 }
 
@@ -102,23 +106,20 @@ pub fn set_light(
 			GetSetLightValue::Intensity { value } => {
 				if let Some(intensity) = value {
 					q.intensity = intensity
-				} else {
-					command.reply(format!("{:e}", q.intensity))
 				}
+				reply!(command, "{:e}", q.intensity);
 			}
 			GetSetLightValue::OuterAngle { value } => {
 				if let Some(angle) = value {
 					q.outer_angle = angle.to_radians()
-				} else {
-					command.reply(format!("{}", q.outer_angle.to_degrees()))
 				}
+				reply!(command, "{}", q.outer_angle.to_degrees());
 			}
 			GetSetLightValue::InnerAngle { value } => {
 				if let Some(angle) = value {
 					q.inner_angle = angle.to_radians()
-				} else {
-					command.reply(format!("{}", q.inner_angle.to_degrees()))
 				}
+				reply!(command, "{}", q.inner_angle.to_degrees());
 			}
 		}
 	}
@@ -138,7 +139,7 @@ enum GetSetLightValue {
 	},
 }
 
-/// Adjust ocean and storm parameters
+/// Adjust ocean parameters
 #[derive(Parser, Debug, ConsoleCommand)]
 #[command(name = "ocean")]
 #[clap(infer_subcommands = true)]
@@ -149,44 +150,95 @@ pub struct AdjustOcean {
 
 #[derive(Subcommand, Debug)]
 pub enum GetSetOceanValue {
-	#[command(alias = "intensity")]
-	StormIntensity {
-		#[arg(allow_hyphen_values = true)]
-		value: Option<f32>,
-	},
 	#[command(alias = "z")]
 	Height {
 		#[arg(allow_hyphen_values = true)]
 		value: Option<f32>,
 	},
+	Seed {
+		value: Option<String>,
+	}
 }
 
 pub fn adjust_ocean(
 	mut command: ConsoleCommand<AdjustOcean>,
-	mut ocean: Option<Single<&mut Transform, With<OceanSurface>>>,
-	mut storm: Option<ResMut<StormIntensity>>,
+	mut ocean: Option<Single<(&mut Transform, &MeshMaterial3d<ExtendedMaterial<StandardMaterial, OceanMaterial>>), With<OceanSurface>>>,
+	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
 ) {
 	if let Some(Ok(cmd)) = command.take() {
+		let Some((xform, mat)) = ocean.as_deref_mut() else {
+			reply_failed!(command, "OceanSurface is not spawned");
+			return;
+		};
 		match cmd.action {
-			GetSetOceanValue::StormIntensity { value } => {
-				let Some(storm) = storm.as_mut() else {
-					reply_failed!(command, "Storm resource does not exist");
-					return;
-				};
-				if let Some(intensity) = value {
-					storm.0 = intensity;
-				}
-				reply!(command, "{:?}", &**storm);
-			}
 			GetSetOceanValue::Height { value } => {
-				let Some(mut ocean) = ocean else {
-					reply_failed!(command, "OceanSurface is not spawned");
-					return;
-				};
 				if let Some(z) = value {
-					ocean.translation.z = z;
+					xform.translation.z = z;
 				}
-				reply!(command, "Ocean height: {}", ocean.translation.z);
+				reply!(command, "Ocean height: {}", xform.translation.z);
+			}
+			GetSetOceanValue::Seed { value } => {
+				if let Some(seed) = value {
+					let Some(mat) = mats.get_mut(mat.id()) else {
+						reply_failed!(command, "couldn't get ocean material");
+						return;
+					};
+					if seed.starts_with("rand") {
+						mat.extension.seed = rand::random();
+					} else {
+						match seed.parse::<u32>() {
+							Ok(seed) => mat.extension.seed = seed,
+							Err(e) => reply_failed!(command, "failed to parse seed {seed:?}: {e}"),
+						}
+					}
+					reply!(command, "{:?}", mat.extension.seed);
+				} else {
+					let Some(mat) = mats.get(mat.id()) else {
+						reply_failed!(command, "couldn't get ocean material");
+						return;
+					};
+					reply!(command, "{:?}", mat.extension.seed);
+				}
+			}
+		}
+	}
+}
+
+/// Adjust storm parameters
+#[derive(Parser, Debug, ConsoleCommand)]
+#[command(name = "storm")]
+#[clap(infer_subcommands = true)]
+pub struct AdjustStorm {
+	#[command(subcommand)]
+	action: Option<GetSetStormValue>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum GetSetStormValue {
+	Intensity {
+		#[arg(allow_hyphen_values = true)]
+		value: Option<f32>,
+	},
+}
+
+pub fn adjust_storm(
+	mut command: ConsoleCommand<AdjustStorm>,
+	mut storm: Option<ResMut<Storm>>,
+) {
+	if let Some(Ok(cmd)) = command.take() {
+		let Some(storm) = storm.as_mut() else {
+			reply_failed!(command, "Storm resource does not exist");
+			return;
+		};
+		match cmd.action {
+			None => reply!(command, "{:?}", &**storm),
+			Some(GetSetStormValue::Intensity { value }) => {
+				if let Some(intensity) = value {
+					if let Some(intensity) = value {
+						storm.intensity = intensity;
+					}
+				}
+				reply!(command, "{:?}", storm.intensity);
 			}
 		}
 	}

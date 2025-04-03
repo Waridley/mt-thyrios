@@ -31,7 +31,7 @@ impl Plugin for OceanPlugin {
 			ExtendedMaterial<StandardMaterial, OceanMaterial>,
 		>::default())
 			.register_asset_reflect::<ExtendedMaterial<StandardMaterial, OceanMaterial>>()
-			.insert_resource(StormIntensity(0.2))
+			.insert_resource(Storm { intensity: 0.2 })
 			.register_provider(setup_ocean.provides([OceanSpawned.intern()]))
 			.add_systems(
 				Update,
@@ -50,7 +50,7 @@ pub fn setup_ocean(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
-	storm_intensity: Res<StormIntensity>,
+	storm: Res<Storm>,
 ) {
 	// TODO: Graphics quality setting
 	const SUBDIVS: u32 = 1024;
@@ -85,7 +85,7 @@ pub fn setup_ocean(
 				fragment_wave_octaves: 10,
 				fragment_tide_octaves: 5,
 				size: RADIUS,
-				storm_intensity: **storm_intensity,
+				storm_intensity: storm.intensity,
 				horizon_color: Color::BLACK.to_linear().to_vec4(),
 
 				lighting: false,
@@ -174,11 +174,11 @@ impl MaterialExtension for OceanMaterial {
 impl OceanMaterial {
 	pub fn sync_storm_intensity(
 		mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
-		intensity: Res<StormIntensity>,
+		storm: Res<Storm>,
 	) {
-		if intensity.is_changed() {
+		if storm.is_changed() {
 			for (_, mat) in mats.iter_mut() {
-				mat.extension.storm_intensity = **intensity;
+				mat.extension.storm_intensity = storm.intensity;
 			}
 		}
 	}
@@ -225,8 +225,10 @@ pub struct Fbm {
 	pub fragment_tide_octaves: u32,
 }
 
-#[derive(Resource, Debug, Deref, DerefMut)]
-pub struct StormIntensity(pub f32);
+#[derive(Resource, Debug)]
+pub struct Storm {
+	pub intensity: f32,
+}
 
 /// A bit of a hack to keep triangles ordered back-to-front from the camera's view.
 pub fn ocean_rotation_follow_cam_anchor(

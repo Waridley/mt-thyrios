@@ -1,7 +1,7 @@
 use crate::dev_tools::paint::{BrushShape, Paintbrush};
 use crate::game::GameLoadingState;
 use crate::game::mtn::terrain::TerrainKind;
-use crate::game::ocean::{OceanMaterial, OceanSurface, StormIntensity};
+use crate::game::ocean::{OceanMaterial, OceanSurface, Storm};
 use crate::state::GlobalState::InGame;
 use bevy::color::palettes::basic::YELLOW;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -69,7 +69,7 @@ pub fn update_fps(mut q: Option<Single<&mut Text, With<FpsText>>>, diags: Res<Di
 pub struct FpsText;
 
 pub fn adjust_storm(
-	mut storm_intensity: ResMut<StormIntensity>,
+	mut storm: ResMut<Storm>,
 	mut ocean: Single<&mut Transform, With<OceanSurface>>,
 	keys: Res<ButtonInput<KeyCode>>,
 	t: Res<Time>,
@@ -83,9 +83,9 @@ pub fn adjust_storm(
 	}
 
 	if incr != 0.0 {
-		let new_intensity = (**storm_intensity + incr * 0.5).clamp(0.0, 2.0);
-		if **storm_intensity != new_intensity {
-			**storm_intensity = new_intensity;
+		let new_intensity = (storm.intensity + incr * 0.5).clamp(0.0, 2.0);
+		if storm.intensity != new_intensity {
+			storm.intensity = new_intensity;
 			info!(new_intensity);
 		}
 	}

@@ -1,6 +1,6 @@
 use crate::game::cam::{CamAnchor, CamStick, FrameCenter};
 use crate::game::mtn::Mountain;
-use crate::game::ocean::{OceanSurface, StormIntensity};
+use crate::game::ocean::{OceanSurface, Storm};
 use crate::state::GlobalState::InGame;
 use bevy::asset::ron;
 use bevy::prelude::*;
@@ -78,7 +78,7 @@ pub fn cam_input(
 		(Without<Camera3d>, Without<FrameCenter>, Without<CamAnchor>),
 	>,
 	ocean_surface: Single<&GlobalTransform, With<OceanSurface>>,
-	storm_intensity: Res<StormIntensity>,
+	storm: Res<Storm>,
 	state: Res<ActionState<GameInput>>,
 	t: Res<Time>,
 ) {
@@ -95,11 +95,11 @@ pub fn cam_input(
 	let slope = mtn.slope;
 	let dir = Vec3::new(0.0, 1.0, slope).normalize();
 	let min_z =
-		ocean_surface.translation().z - anchor.1.translation().z + (**storm_intensity * 4.0);
+		ocean_surface.translation().z - anchor.1.translation().z + (storm.intensity * 4.0);
 	let min_y = min_z / slope;
 	let max_z = f32::max(
 		0.0,
-		ocean_surface.translation().z - anchor.1.translation().z + (**storm_intensity * 4.0),
+		ocean_surface.translation().z - anchor.1.translation().z + (storm.intensity * 4.0),
 	);
 	frame_center.translation = Vec3::clamp(
 		frame_center.translation + input.z * dir * 0.5,
