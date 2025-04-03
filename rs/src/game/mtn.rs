@@ -35,7 +35,7 @@ use bevy::render::render_resource::{
 	VertexFormat,
 };
 use bevy::scene::SceneInstance;
-use bevy::utils::HashSet;
+use bevy::platform_support::collections::HashSet;
 use smolset::SmolSet;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
@@ -277,7 +277,7 @@ pub fn setup_mountain(
 }
 
 #[derive(Component, Debug, Clone)]
-#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct Mountain {
 	pub peak_elevation: f32,
 	pub plateau_radius: f32,
@@ -713,7 +713,7 @@ pub fn debug_find_triangle_intersected_by_ray(
 ) -> Option<(TriIdx, f32)> {
 	let positions = mesh.positions().unwrap();
 
-	let mut tris = HashSet::new();
+	let mut tris = HashSet::default();
 	fn collect_tris(
 		ray: Ray3d,
 		node: &BvhNode<TriIdx>,

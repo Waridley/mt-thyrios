@@ -1,7 +1,7 @@
 use crate::game::mtn::Mountain;
 use bevy::ecs::query::{QueryFilter, QuerySingleError};
-use bevy::ecs::schedule::SystemConfigs;
-use bevy::ecs::system::SystemParam;
+use bevy::ecs::schedule::ScheduleConfigs;
+use bevy::ecs::system::{ScheduleSystem, SystemParam};
 use bevy::gltf::{GltfError, GltfMesh};
 use bevy::math::Vec3A;
 use bevy::math::bounding::Aabb3d;
@@ -483,7 +483,7 @@ pub fn single_entity_exists<F: QueryFilter>(q: Option<Single<(), F>>) -> bool {
 }
 
 pub trait IntoSetupStep<M, F> {
-	fn setup_done_when<CM>(self, done_condition: impl Condition<CM>) -> SystemConfigs;
+	fn setup_done_when<CM>(self, done_condition: impl Condition<CM>) -> ScheduleConfigs<ScheduleSystem>;
 }
 
 impl<M, F> IntoSetupStep<M, F> for F
@@ -491,8 +491,9 @@ where
 	F: SystemParamFunction<M, In = (), Out = ()> + Sized,
 	M: 'static,
 {
-	fn setup_done_when<CM>(self, done_condition: impl Condition<CM>) -> SystemConfigs {
-		self.never_param_warn().run_if(not(done_condition))
+	fn setup_done_when<CM>(self, done_condition: impl Condition<CM>) -> ScheduleConfigs<ScheduleSystem> {
+		// FIXME: never param warn, was moved to global in 0.16
+		self.run_if(not(done_condition))
 	}
 }
 

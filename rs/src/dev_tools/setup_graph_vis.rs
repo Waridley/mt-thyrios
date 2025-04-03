@@ -3,7 +3,7 @@ use crate::setup_tracking::{SetupKey, SetupTracker};
 use crate::ui::egui::Ui;
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
-use bevy::utils::HashMap;
+use bevy::platform_support::collections::HashMap;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::Color32;
 use egui_snarl::ui::{PinInfo, SnarlStyle, SnarlViewer, WireStyle};
@@ -119,7 +119,7 @@ pub fn sync_snarl<K: SetupKey>(
 			for (j, id) in stage.into_iter().enumerate() {
 				if !nodes.iter().any(|(_, node)| *node == id) {
 					let node = snarl.snarl.insert_node(
-						bevy_egui::egui::Pos2::new(i as f32 * 360.0, j as f32 * 64.0),
+						bevy_egui::egui::Pos2::new(i as f32 * 400.0, j as f32 * 64.0),
 						id,
 					);
 					nodes.insert(node, id);

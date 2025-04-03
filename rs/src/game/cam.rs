@@ -113,23 +113,23 @@ pub fn activate_cam(mut cam: Single<&mut Camera, With<Camera3d>>) {
 }
 
 #[derive(Component, Debug)]
-#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct CamAnchor;
 
 #[derive(Component, Debug)]
-#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct FrameCenter;
 
 #[derive(Component, Debug)]
-#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct CamStick {
 	pub default_rotation: Quat,
 }
 
 #[derive(Component, Debug)]
-#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct CamLightStick;
 
 #[derive(Component, Debug)]
-#[require(Transform, Visibility, StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(Transform, Visibility, StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct CamLight;

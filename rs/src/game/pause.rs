@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use bevy_egui::egui::text::LayoutSection;
 use bevy_egui::egui::{Align, Align2, Margin, RichText, Stroke, Widget, WidgetText};
 use bevy_egui::{EguiContexts, egui};
-use bevy_steamworks::Input;
+// use bevy_steamworks::Input;
 use tiny_bail::prelude::r;
 
 pub struct PausePlugin;

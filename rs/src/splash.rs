@@ -25,13 +25,13 @@ pub fn spawn_splash(mut cmds: Commands, asset_server: Res<AssetServer>) {
 			clear_color: ClearColorConfig::Custom(Color::BLACK),
 			..default()
 		},
-		OrthographicProjection {
+		Projection::Orthographic(OrthographicProjection {
 			scaling_mode: ScalingMode::AutoMin {
 				min_width: 1920.0,
 				min_height: 1080.0,
 			},
 			..OrthographicProjection::default_2d()
-		},
+		}),
 		StateScoped(GlobalState::Splash),
 	));
 	let logo_handle = asset_server.load("splashes/sonday_logo.png");

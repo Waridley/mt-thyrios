@@ -5,15 +5,15 @@ use bevy::window::PrimaryWindow;
 use bevy::winit::WinitWindows;
 pub use bevy_egui::egui;
 use bevy_egui::egui::Align;
-use bevy_egui::{EguiContexts, EguiSettings};
-use egui_colors::{Colorix, tokens::ColorPreset};
+use bevy_egui::{EguiContexts, EguiContextSettings};
+use egui_colors::{Colorix, tokens::ThemeColor};
 use std::any::Any;
 use std::fmt::Debug;
 use tiny_bail::prelude::r;
 
 pub struct UiPlugin;
 
-pub const DEFAULT_THEME: [ColorPreset; 12] = egui_colors::utils::GRASS_BRONZE;
+pub const DEFAULT_THEME: [ThemeColor; 12] = egui_colors::utils::GRASS_BRONZE;
 pub const DEFAULT_SCALE: f32 = 1.0;
 pub const DESIGN_HEIGHT: f64 = 1080.0;
 pub const SCALE_STEP: f64 = 0.25;
@@ -29,7 +29,7 @@ impl Plugin for UiPlugin {
 pub fn setup_egui(
 	mut cmds: Commands,
 	mut contexts: EguiContexts,
-	mut settings: Single<&mut EguiSettings>,
+	mut settings: Single<&mut EguiContextSettings>,
 	window: Single<Entity, With<PrimaryWindow>>,
 	winit_windows: NonSend<WinitWindows>,
 ) {
@@ -45,20 +45,20 @@ pub fn setup_egui(
 	let ctx = r!(contexts.try_ctx_mut());
 	ctx.set_theme(egui::Theme::Dark);
 	let waridley_theme = [
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x80, 0xff, 0x40]),
-		ColorPreset::Custom([0x80, 0xff, 0x40]),
-		ColorPreset::Custom([0x80, 0xff, 0x40]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
-		ColorPreset::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x80, 0xff, 0x40]),
+		ThemeColor::Custom([0x80, 0xff, 0x40]),
+		ThemeColor::Custom([0x80, 0xff, 0x40]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		ThemeColor::Custom([0x8c, 0x00, 0xff]),
 	];
-	let colorix = Colorix::init(ctx, DEFAULT_THEME);
+	let colorix = Colorix::global(ctx, DEFAULT_THEME);
 	cmds.insert_resource(GameTheme {
 		colorix,
 		custom_themes: std::iter::once(("Waridley", waridley_theme))
@@ -74,7 +74,7 @@ pub fn setup_egui(
 #[derive(Resource, Debug)]
 pub struct GameTheme {
 	pub colorix: Colorix,
-	pub custom_themes: (Vec<&'static str>, Vec<[ColorPreset; 12]>),
+	pub custom_themes: (Vec<&'static str>, Vec<[ThemeColor; 12]>),
 }
 
 impl GameTheme {
@@ -86,36 +86,36 @@ impl GameTheme {
 				// because horizontal_centered expands way too large
 				ui.add_space(7.0);
 				self.colorix
-					.themes_dropdown(ctx, ui, Some(custom_themes), false);
+					.themes_dropdown(ui, Some(custom_themes), false);
 			});
-			self.colorix.light_dark_toggle_button(ctx, ui);
+			self.colorix.light_dark_toggle_button(ui, 16.0);
 		});
 	}
 }
 
-const ALL_SINGLE_COLOR_COLORIX_THEMES: [[ColorPreset; 12]; 22] = [
-	[ColorPreset::Gray; 12],
-	[ColorPreset::EguiBlue; 12],
-	[ColorPreset::Tomato; 12],
-	[ColorPreset::Red; 12],
-	[ColorPreset::Ruby; 12],
-	[ColorPreset::Crimson; 12],
-	[ColorPreset::Pink; 12],
-	[ColorPreset::Plum; 12],
-	[ColorPreset::Purple; 12],
-	[ColorPreset::Violet; 12],
-	[ColorPreset::Iris; 12],
-	[ColorPreset::Indigo; 12],
-	[ColorPreset::Blue; 12],
-	[ColorPreset::Cyan; 12],
-	[ColorPreset::Teal; 12],
-	[ColorPreset::Jade; 12],
-	[ColorPreset::Green; 12],
-	[ColorPreset::Grass; 12],
-	[ColorPreset::Brown; 12],
-	[ColorPreset::Bronze; 12],
-	[ColorPreset::Gold; 12],
-	[ColorPreset::Orange; 12],
+const ALL_SINGLE_COLOR_COLORIX_THEMES: [[ThemeColor; 12]; 22] = [
+	[ThemeColor::Gray; 12],
+	[ThemeColor::EguiBlue; 12],
+	[ThemeColor::Tomato; 12],
+	[ThemeColor::Red; 12],
+	[ThemeColor::Ruby; 12],
+	[ThemeColor::Crimson; 12],
+	[ThemeColor::Pink; 12],
+	[ThemeColor::Plum; 12],
+	[ThemeColor::Purple; 12],
+	[ThemeColor::Violet; 12],
+	[ThemeColor::Iris; 12],
+	[ThemeColor::Indigo; 12],
+	[ThemeColor::Blue; 12],
+	[ThemeColor::Cyan; 12],
+	[ThemeColor::Teal; 12],
+	[ThemeColor::Jade; 12],
+	[ThemeColor::Green; 12],
+	[ThemeColor::Grass; 12],
+	[ThemeColor::Brown; 12],
+	[ThemeColor::Bronze; 12],
+	[ThemeColor::Gold; 12],
+	[ThemeColor::Orange; 12],
 ];
 
 const ALL_SINGLE_COLOR_COLORIX_THEME_NAMES: [&'static str; 22] = [
@@ -127,7 +127,7 @@ const ALL_SINGLE_COLOR_COLORIX_THEME_NAMES: [&'static str; 22] = [
 pub fn menu_button(text: impl Into<RichText>) -> egui::Button<'static> {
 	egui::Button::new(text.into().strong().size(36.0))
 		.min_size([150.0, 50.0].into())
-		.rounding(Rounding::same(20.0))
+		.rounding(Rounding::same(20))
 }
 
 pub trait Menu: Any + Debug + Send + Sync + 'static {}

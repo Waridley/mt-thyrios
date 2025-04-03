@@ -1,9 +1,9 @@
 use bevy::asset::UntypedAssetId;
 use bevy::ecs::query::QueryFilter;
-use bevy::ecs::schedule::{BoxedCondition, SystemConfigs};
+use bevy::ecs::schedule::{BoxedCondition, ScheduleConfigs};
 use bevy::ecs::system::{BoxedSystem, SystemId};
 use bevy::prelude::*;
-use bevy::utils::{HashMap, HashSet};
+use bevy::platform_support::collections::{HashSet, HashMap};
 use nutype::nutype;
 use std::arch::x86_64::_CMP_FALSE_OQ;
 use std::borrow::Cow;
@@ -161,8 +161,8 @@ impl<K: SetupKey> SetupTracker<K> {
 	{
 		world.resource_scope::<SetupTracker<K>, _>(|world, tracker| {
 			let mut unprovided = tracker.entries.keys().cloned().collect::<HashSet<_>>();
-			let mut providers = HashMap::<K, Vec<SystemId>>::new();
-			let mut cyclic_dependencies = HashSet::<K>::new();
+			let mut providers = HashMap::<K, Vec<SystemId>>::default();
+			let mut cyclic_dependencies = HashSet::<K>::default();
 			for (system, info) in tracker.providers.iter() {
 				for provision in &info.provides {
 					providers
@@ -320,10 +320,22 @@ impl<K: SetupKey, S: IntoSystem<(), (), M> + 'static, M> Provider<K, S, M> {
 		} = self;
 		let name = name.unwrap_or_else(|| {
 			let full_name = std::any::type_name_of_val(&system);
-			full_name
-				.trim_start_matches("<")
+			let full_name: &'static str = if full_name.starts_with('<') && full_name.ends_with('>') {
+				&full_name[1..full_name.len() - 2]
+			} else {
+				full_name
+			};
+			let full_name: &'static str = full_name
 				.trim_start_matches("mt_thyrios::")
-				.into()
+				.trim_start_matches("setup_tracking::");
+			let mut full_name = Cow::<'static, str>::Borrowed(full_name);
+			if full_name.contains("mt_thyrios::") {
+				full_name = Cow::Owned(full_name.replace("mt_thyrios::", ""));
+			}
+			if full_name.contains("setup_tracking::") {
+				full_name = Cow::Owned(full_name.replace("setup_tracking::", ""));
+			}
+			full_name
 		});
 		let info = ProviderInfo {
 			requires,

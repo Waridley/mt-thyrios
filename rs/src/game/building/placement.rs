@@ -35,7 +35,7 @@ impl Plugin for PlacementPlugin {
 }
 
 #[derive(Component)]
-#[require(Transform, Visibility(|| Visibility::Hidden), Mesh3d, MeshMaterial3d<MtnCursorMaterial>, StateScoped<GlobalState>(|| StateScoped(GlobalState::InGame)))]
+#[require(Transform, Visibility = Visibility::Hidden, Mesh3d, MeshMaterial3d<MtnCursorMaterial>, StateScoped<GlobalState> = StateScoped(GlobalState::InGame))]
 pub struct MtnCursor;
 
 impl MtnCursor {

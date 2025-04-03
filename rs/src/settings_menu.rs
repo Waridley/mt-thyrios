@@ -1,6 +1,6 @@
 use crate::ui::{GameTheme, Menu, MenuStack, egui};
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiSettings};
+use bevy_egui::{EguiContexts, EguiContextSettings};
 use egui::{Align2, Widget};
 use tiny_bail::prelude::r;
 
@@ -24,7 +24,7 @@ impl SettingsMenu {
 	pub fn draw(
 		mut contexts: EguiContexts,
 		mut theme: ResMut<GameTheme>,
-		mut egui_settings: Single<&mut EguiSettings>,
+		mut egui_settings: Single<&mut EguiContextSettings>,
 		mut zoom: Local<f32>,
 		mut menu_stack: ResMut<MenuStack>,
 	) {

@@ -40,10 +40,10 @@ use bevy::{
 	render::mesh::{Indices, VertexAttributeValues},
 	render::render_resource::{Face, VertexFormat},
 	tasks::{AsyncComputeTaskPool, futures_lite},
-	utils::HashMap,
+	platform_support::collections::hash_map::HashMap,
 	window::PrimaryWindow,
 };
-use bevy_egui::{EguiContext, EguiContexts, EguiRenderToTextureHandle};
+use bevy_egui::{EguiContext, EguiContexts};
 use bevy_inspector_egui::restricted_world_view::RestrictedWorldView;
 use bevy_inspector_egui::{
 	egui::emath::One,
@@ -94,7 +94,7 @@ impl Plugin for TerrainPaintPlugin {
 			)
 			.add_systems(
 				First,
-				TerrainWeights::update_on_mesh_reloaded.never_param_warn(),
+				TerrainWeights::update_on_mesh_reloaded,
 			)
 			.add_systems(
 				Update,
@@ -107,7 +107,7 @@ impl Plugin for TerrainPaintPlugin {
 				)
 					.run_if(in_state(GlobalState::InGame)),
 			)
-			.add_systems(Last, save_on_exit.never_param_warn())
+			.add_systems(Last, save_on_exit)
 			.add_systems(OnExit(GlobalState::InGame), |mut cmds: Commands| {
 				cmds.remove_resource::<TerrainWeights>()
 			});
@@ -842,7 +842,7 @@ pub struct TerrainWeights {
 impl FromWorld for TerrainWeights {
 	fn from_world(world: &mut World) -> Self {
 		let mut q = world.query_filtered::<&Mesh3d, With<Mountain>>();
-		let mtn_mesh = q.single(world).0.id();
+		let mtn_mesh = q.single(world).unwrap().0.id();
 		let mtn_mesh = world.resource::<Assets<Mesh>>().get(mtn_mesh).unwrap();
 
 		Self::from_mesh(mtn_mesh)

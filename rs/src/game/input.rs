@@ -141,8 +141,8 @@ pub fn toggle_fullscreen(
 	use WindowMode::*;
 	if keys.just_pressed(KeyCode::F11) {
 		let new = match window.mode {
-			Fullscreen(_) => Windowed,
-			_ => Fullscreen(MonitorSelection::Current),
+			Fullscreen(_, _) => Windowed,
+			_ => Fullscreen(MonitorSelection::Current, VideoModeSelection::Current),
 		};
 		window.mode = new;
 	}

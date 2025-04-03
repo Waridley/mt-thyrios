@@ -18,6 +18,7 @@ use bevy::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::window::{PresentMode, PrimaryWindow};
 use std::path::PathBuf;
+use bevy_egui::EguiUserTextures;
 
 #[cfg(feature = "dev_tools")]
 pub mod dev_tools;
@@ -28,7 +29,7 @@ pub mod settings_menu;
 pub mod setup_tracking;
 pub mod splash;
 pub mod state;
-pub mod steam;
+// pub mod steam;
 pub mod ui;
 pub mod util;
 
@@ -91,7 +92,7 @@ fn main() -> AppExit {
 
 	app.add_plugins(def_plugs);
 	#[cfg(feature = "dev_tools")]
-	app.add_plugins((FrameTimeDiagnosticsPlugin, WireframePlugin));
+	app.add_plugins((FrameTimeDiagnosticsPlugin::default(), WireframePlugin));
 	app.add_plugins(TemporalAntiAliasPlugin);
 
 	app.add_plugins((
@@ -101,7 +102,7 @@ fn main() -> AppExit {
 		game::GamePlugin,
 		ld::LoadingScreenPlugin,
 		state::GlobalStatePlugin,
-		steam::SteamIntegrationPlugin,
+		// steam::SteamIntegrationPlugin,
 		ui::UiPlugin,
 		#[cfg(feature = "dev_tools")]
 		dev_tools::ToolsPlugin,

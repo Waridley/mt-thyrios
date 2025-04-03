@@ -9,7 +9,8 @@ use bevy::gltf::{GltfLoader, GltfLoaderSettings, GltfMesh, GltfNode};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, MeshVertexAttribute};
 use bevy::render::render_resource::VertexFormat;
-use bevy::utils::{ConditionalSendFuture, HashMap, HashSet};
+use bevy::platform_support::collections::{HashMap, HashSet};
+use bevy::tasks::ConditionalSendFuture;
 use gltf::Glb;
 use gltf::binary::Header;
 use gltf_json::accessor::GenericComponentType;
@@ -25,6 +26,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::num::TryFromIntError;
+use bevy::render::mesh::VertexFormat::Unorm8x4Bgra;
 
 pub struct GlbSaver;
 
@@ -622,9 +624,11 @@ fn gltf_attribute_name(attrib: &MeshVertexAttribute) -> Checked<Semantic> {
 fn is_attribute_normalized(format: VertexFormat) -> bool {
 	use VertexFormat::*;
 	match format {
-		Unorm8x2 | Unorm8x4 | Snorm8x2 | Snorm8x4 | Unorm16x2 | Unorm16x4 | Snorm16x2
+		Unorm8 | Snorm8 | Unorm16 | Snorm16 |
+		Unorm8x2 | Unorm8x4 | Unorm8x4Bgra | Snorm8x2 | Snorm8x4 | Unorm16x2 | Unorm16x4 | Snorm16x2
 		| Snorm16x4 | Unorm10_10_10_2 => true,
 
+		Uint8 | Sint8 | Uint16 | Sint16 | Float16 |
 		Uint8x2 | Uint8x4 | Sint8x2 | Sint8x4 | Uint16x2 | Uint16x4 | Sint16x2 | Sint16x4
 		| Float16x2 | Float16x4 | Float32 | Float32x2 | Float32x3 | Float32x4 | Uint32
 		| Uint32x2 | Uint32x3 | Uint32x4 | Sint32 | Sint32x2 | Sint32x3 | Sint32x4 | Float64
@@ -636,15 +640,15 @@ fn attribute_component_type(format: VertexFormat) -> gltf_json::accessor::Compon
 	use VertexFormat::*;
 	use gltf_json::accessor::ComponentType::*;
 	match format {
-		Uint8x2 | Uint8x4 | Unorm8x2 | Unorm8x4 => U8,
+		Uint8 | Unorm8 | Uint8x2 | Uint8x4 | Unorm8x2 | Unorm8x4 | Unorm8x4Bgra => U8,
 
-		Sint8x2 | Sint8x4 | Snorm8x2 | Snorm8x4 => I8,
+		Sint8 | Snorm8 | Sint8x2 | Sint8x4 | Snorm8x2 | Snorm8x4 => I8,
 
-		Uint16x2 | Uint16x4 | Unorm16x2 | Unorm16x4 => U16,
+		Uint16 | Unorm16 | Uint16x2 | Uint16x4 | Unorm16x2 | Unorm16x4 => U16,
 
-		Sint16x2 | Sint16x4 | Snorm16x2 | Snorm16x4 => I16,
+		Sint16 | Snorm16 | Sint16x2 | Sint16x4 | Snorm16x2 | Snorm16x4 => I16,
 
-		Float16x2 | Float16x4 => unimplemented!(
+		Float16 | Float16x2 | Float16x4 => unimplemented!(
 			"if Float16 is needed, we need to special case `get_bytes` and convert to F32"
 		),
 
@@ -664,14 +668,14 @@ fn attribute_type(format: VertexFormat) -> gltf_json::accessor::Type {
 	use VertexFormat::*;
 	use gltf_json::accessor::Type;
 	match format {
-		Float32 | Uint32 | Sint32 | Float64 => Type::Scalar,
+		Uint8 | Unorm8 | Sint8 | Snorm8 | Uint16 | Unorm16 | Sint16 | Snorm16 | Float16 | Float32 | Uint32 | Sint32 | Float64 => Type::Scalar,
 
 		Uint8x2 | Sint8x2 | Unorm8x2 | Snorm8x2 | Uint16x2 | Sint16x2 | Unorm16x2 | Snorm16x2
 		| Float16x2 | Float32x2 | Uint32x2 | Sint32x2 | Float64x2 => Type::Vec2,
 
 		Float32x3 | Uint32x3 | Sint32x3 | Float64x3 => Type::Vec3,
 
-		Uint8x4 | Sint8x4 | Unorm8x4 | Snorm8x4 | Uint16x4 | Sint16x4 | Unorm16x4 | Snorm16x4
+		Uint8x4 | Sint8x4 | Unorm8x4 | Unorm8x4Bgra | Snorm8x4 | Uint16x4 | Sint16x4 | Unorm16x4 | Snorm16x4
 		| Float16x4 | Float32x4 | Uint32x4 | Sint32x4 | Float64x4 => Type::Vec4,
 
 		Unorm10_10_10_2 => unimplemented!("gltf crate doesn't support Unorm10_10_10_2"),

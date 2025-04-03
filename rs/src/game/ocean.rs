@@ -106,7 +106,7 @@ pub fn setup_ocean(
 }
 
 #[derive(Component, Debug)]
-#[require(StateScoped<GlobalState>(|| StateScoped(InGame)))]
+#[require(StateScoped<GlobalState> = StateScoped(InGame))]
 pub struct OceanSurface;
 
 #[derive(AsBindGroup, Asset, Debug, Clone, Reflect)]
