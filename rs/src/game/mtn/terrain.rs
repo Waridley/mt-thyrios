@@ -1,10 +1,12 @@
 use crate::game::GameLoadingState;
 use crate::game::mtn::MountainAssets;
 use crate::new_game_setup_label;
-use crate::setup_tracking::Progress;
+use crate::setup_tracking::{AssetCollection, Progress, assets_progress};
 use crate::state::GlobalState;
 use crate::state::GlobalState::InGame;
-use bevy::asset::{Asset, AssetContainer, AssetServer, ErasedAssetLoader, Handle, ReflectAsset};
+use bevy::asset::{
+	Asset, AssetContainer, AssetServer, ErasedAssetLoader, Handle, ReflectAsset, UntypedAssetId,
+};
 use bevy::image::Image;
 use bevy::pbr::{MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline};
 use bevy::prelude::*;
@@ -13,7 +15,6 @@ use bevy::render::render_resource::{
 	AsBindGroup, RenderPipelineDescriptor, ShaderDefVal, ShaderRef, SpecializedMeshPipelineError,
 	VertexFormat,
 };
-use bevy_asset_loader::prelude::AssetCollection;
 use enum_map::{Enum, EnumMap, enum_map};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -79,7 +80,7 @@ pub const ATTRIBUTE_TERRAIN_WEIGHTS_4_7: MeshVertexAttribute =
 	MeshVertexAttribute::new("Terrain_Weights_4_7", 6401, VertexFormat::Unorm16x4);
 
 #[derive(Resource, Deref, Default)]
-pub struct StackedTerrainTextures(EnumMap<TerrainKind, bool>);
+pub struct StackedTerrainTextures(pub EnumMap<TerrainKind, bool>);
 
 impl StackedTerrainTextures {
 	pub fn progress(done: Res<Self>) -> Progress {
@@ -121,22 +122,24 @@ pub fn stack_terrain_textures(
 #[derive(Resource, Deref, DerefMut)]
 pub struct TexturesMap(EnumMap<TerrainKind, Handle<Image>>);
 
-impl AssetCollection for TexturesMap {
-	fn create(world: &mut World) -> Self {
+impl FromWorld for TexturesMap {
+	fn from_world(world: &mut World) -> Self {
 		let asset_server = world.get_resource::<AssetServer>().unwrap();
 		Self(EnumMap::from_fn(|kind: TerrainKind| {
 			asset_server.load(kind.texture_path())
 		}))
 	}
+}
 
-	fn load(world: &mut World) -> Vec<UntypedHandle> {
-		let asset_server = world.get_resource::<AssetServer>().unwrap();
-		<TerrainKind as VariantArray>::VARIANTS[0..1]
-			.iter()
-			.map(|kind| asset_server.load::<Image>(kind.texture_path()).untyped())
-			.collect()
+impl AssetCollection for TexturesMap {
+	fn iter_ids(&self) -> impl Iterator<Item = UntypedAssetId> {
+		// TODO: Actually return all handles when images are authored
+		// self.0.values().map(|handle| handle.id().untyped())
+		std::iter::once(self.0[TerrainKind::Dirt].id().untyped())
 	}
 }
+
+new_game_setup_label!(TerrainTexturesLoaded, assets_progress::<TexturesMap>);
 
 #[derive(AsBindGroup, Asset, Debug, Clone, Reflect)]
 #[reflect(Asset)]

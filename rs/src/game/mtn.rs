@@ -1,19 +1,21 @@
 use crate::game::mtn::terrain::{
-	StackedTerrainTextures, TerrainKind, TexturesMap, stack_terrain_textures,
+	StackedTerrainTextures, TerrainKind, TerrainTexturesLoaded, TexturesMap, stack_terrain_textures,
 };
 use crate::game::{
-	AssetsLoaded, GameLoadingState, GameSetupKey, GameSetupLabel,
-	mtn::terrain::TerrainTexturesStacked,
+	GameLoadingState, GameSetupKey, GameSetupLabel, mtn::terrain::TerrainTexturesStacked,
 };
 use crate::new_game_setup_label;
-use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
+use crate::setup_tracking::{
+	AssetCollection, IntoDependencyProvider, Progress, RegisterProvider, assets_progress,
+	load_asset_collection, single_spawn_progress,
+};
 use crate::state::GlobalState;
 use crate::util::{FinishedProcessing, GridMesh, MeshExt};
 use GlobalState::{InGame, LoadingGame};
-use bevy::asset::RenderAssetUsages;
+use bevy::asset::{RenderAssetUsages, UntypedAssetId};
 use bevy::color::palettes::basic::FUCHSIA;
 use bevy::ecs::system::IntoObserverSystem;
-use bevy::image::{ImageAddressMode, ImageLoaderSettings};
+use bevy::image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
 use bevy::math::Vec3A;
 use bevy::math::bounding::{
 	Aabb3d, Bounded3d, BoundingSphere, BoundingVolume, IntersectsVolume, RayCast3d,
@@ -34,14 +36,13 @@ use bevy::render::render_resource::{
 };
 use bevy::scene::SceneInstance;
 use bevy::utils::HashSet;
-use bevy_asset_loader::prelude::AssetCollection;
 use smolset::SmolSet;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::ops::Index;
 use terrain::{ATTRIBUTE_TERRAIN_WEIGHTS_0_3, ATTRIBUTE_TERRAIN_WEIGHTS_4_7, TerrainMaterial};
-use tiny_bail::prelude::r;
+use tiny_bail::prelude::{r, rq};
 
 pub mod terrain;
 
@@ -70,14 +71,22 @@ impl Plugin for MountainPlugin {
 				cmds.init_resource::<StackedTerrainTextures>()
 			})
 			.register_provider(
+				load_asset_collection::<MountainAssets>.provides([MtnAssetsLoaded.intern()]),
+			)
+			.register_provider(
+				load_asset_collection::<TexturesMap>
+					.requires([MtnAssetsLoaded.intern()])
+					.provides([TerrainTexturesLoaded.intern()]),
+			)
+			.register_provider(
 				spawn_mountain
 					.provides([MountainSceneSpawned.intern()])
-					.requires([AssetsLoaded.intern()]),
+					.requires([MtnAssetsLoaded.intern()]),
 			)
 			.register_provider(
 				stack_terrain_textures
 					.provides([TerrainTexturesStacked.intern()])
-					.requires([AssetsLoaded.intern()]),
+					.requires([TerrainTexturesLoaded.intern()]),
 			)
 			.register_provider(
 				setup_mountain
@@ -92,13 +101,62 @@ impl Plugin for MountainPlugin {
 	}
 }
 
-#[derive(AssetCollection, Resource, Debug)]
+#[derive(Resource, Debug)]
 pub struct MountainAssets {
-	#[asset(path = "terrain/mtn.glb#Scene0")]
 	pub mountain_scene: Handle<Scene>,
-	#[asset(path = "dbg_grid.png")]
-	#[asset(image(array_texture_layers = 6, sampler(wrap = repeat)))]
 	pub terrain_textures: Handle<Image>,
+}
+
+impl FromWorld for MountainAssets {
+	fn from_world(world: &mut World) -> Self {
+		let server = world.resource::<AssetServer>();
+		let mountain_scene = server.load("terrain/mtn.glb#Scene0");
+		let terrain_textures = server.load("dbg_grid.png");
+		Self {
+			mountain_scene,
+			terrain_textures,
+		}
+	}
+}
+
+impl AssetCollection for MountainAssets {
+	fn iter_ids(&self) -> impl Iterator<Item = UntypedAssetId> {
+		[
+			self.mountain_scene.id().untyped(),
+			self.terrain_textures.id().untyped(),
+		]
+		.into_iter()
+	}
+}
+
+new_game_setup_label!(MtnAssetsLoaded, mtn_assets_progress);
+
+fn mtn_assets_progress(
+	mtn_assets: Option<Res<MountainAssets>>,
+	server: Res<AssetServer>,
+	mut images: ResMut<Assets<Image>>,
+	mut progress: Local<Progress>,
+) -> Progress {
+	if *progress == Progress::DONE {
+		return Progress::DONE;
+	}
+
+	let load_progress = assets_progress(mtn_assets.as_ref().map(Res::clone), Res::clone(&server));
+	if !load_progress.finished() {
+		return load_progress;
+	}
+
+	let mtn_assets = rq!(mtn_assets);
+
+	let img = rq!(images.get_mut(mtn_assets.terrain_textures.id()));
+	img.reinterpret_stacked_2d_as_array(6);
+	img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+		address_mode_u: ImageAddressMode::Repeat,
+		address_mode_v: ImageAddressMode::Repeat,
+		..default()
+	});
+	*progress = Progress::DONE;
+	*progress
 }
 
 pub fn spawn_mountain(

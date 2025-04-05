@@ -94,8 +94,7 @@ pub fn cam_input(
 	// anchor.translation.z += input.z * t.delta_secs() * 50.0;
 	let slope = mtn.slope;
 	let dir = Vec3::new(0.0, 1.0, slope).normalize();
-	let min_z =
-		ocean_surface.translation().z - anchor.1.translation().z + (storm.intensity * 4.0);
+	let min_z = ocean_surface.translation().z - anchor.1.translation().z + (storm.intensity * 4.0);
 	let min_y = min_z / slope;
 	let max_z = f32::max(
 		0.0,

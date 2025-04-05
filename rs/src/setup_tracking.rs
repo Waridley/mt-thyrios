@@ -1,3 +1,4 @@
+use bevy::asset::UntypedAssetId;
 use bevy::ecs::query::QueryFilter;
 use bevy::ecs::schedule::{BoxedCondition, SystemConfigs};
 use bevy::ecs::system::{BoxedSystem, SystemId};
@@ -404,15 +405,35 @@ impl<K: SetupKey, S: IntoSystem<(), (), M>, M> IntoDependencyProvider<K, S, M>
 }
 
 #[nutype(
-	sanitize(with = |val| val.clamp(0.0, 1.0)),
+	const_fn,
+	sanitize(with = clamp_0_to_1),
+	validate(finite),
 	derive(Default, Debug, Deref, Clone, Copy, PartialEq, PartialOrd),
 	default = 0.0,
 )]
 pub struct Progress(f32);
 
+impl Progress {}
+
+const fn clamp_0_to_1(val: f32) -> f32 {
+	val.clamp(0.0, 1.0)
+}
+
 impl Progress {
+	pub const ZERO: Self = Self::new(0.0);
+	pub const DONE: Self = Self::new(1.0);
+
 	pub fn finished(self) -> bool {
 		*self >= 1.0 - f32::EPSILON
+	}
+
+	pub const fn new(value: f32) -> Self {
+		match Self::try_new(value) {
+			Ok(val) => val,
+			Err(e) => match e {
+				ProgressError::FiniteViolated => panic!("value is not finite"),
+			},
+		}
 	}
 }
 
@@ -448,4 +469,40 @@ pub fn state_progress<S: States>(state: S) -> impl System<In = (), Out = Progres
 		curr.map(|curr| (*curr.get() == state).into())
 			.unwrap_or_default()
 	})
+}
+
+pub fn assets_progress<C: AssetCollection>(
+	collection: Option<Res<C>>,
+	server: Res<AssetServer>,
+) -> Progress {
+	let Some(collection) = collection else {
+		return Progress::ZERO;
+	};
+
+	let (done, total) = collection.iter_ids().fold((0, 0), |(done, total), id| {
+		let Some(state) = server.get_load_state(id) else {
+			return (done, total + 1);
+		};
+
+		let done = if state.is_loaded() { done + 1 } else { done };
+
+		(done, total + 1)
+	});
+
+	Progress::new(done as f32 / total as f32)
+}
+
+pub trait AssetCollection: Resource {
+	fn iter_ids(&self) -> impl Iterator<Item = UntypedAssetId>;
+}
+
+pub fn load_asset_collection<C: AssetCollection + FromWorld>(
+	mut cmds: Commands,
+	collection: Option<Res<C>>,
+) {
+	if collection.is_some() {
+		return;
+	}
+
+	cmds.init_resource::<C>();
 }

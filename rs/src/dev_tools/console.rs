@@ -3,10 +3,7 @@ use crate::game::GameSetupKey;
 use crate::game::ocean::{OceanMaterial, OceanSurface, Storm};
 use crate::state::GlobalState;
 use crate::ui::egui::Align2;
-use bevy::{
-	prelude::*,
-	pbr::ExtendedMaterial,
-};
+use bevy::{pbr::ExtendedMaterial, prelude::*};
 use bevy_console::{
 	AddConsoleCommand, BevyLogBuffer, ConsoleCommand, ConsoleConfiguration, ConsolePlugin, reply,
 	reply_failed,
@@ -157,12 +154,20 @@ pub enum GetSetOceanValue {
 	},
 	Seed {
 		value: Option<String>,
-	}
+	},
 }
 
 pub fn adjust_ocean(
 	mut command: ConsoleCommand<AdjustOcean>,
-	mut ocean: Option<Single<(&mut Transform, &MeshMaterial3d<ExtendedMaterial<StandardMaterial, OceanMaterial>>), With<OceanSurface>>>,
+	mut ocean: Option<
+		Single<
+			(
+				&mut Transform,
+				&MeshMaterial3d<ExtendedMaterial<StandardMaterial, OceanMaterial>>,
+			),
+			With<OceanSurface>,
+		>,
+	>,
 	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, OceanMaterial>>>,
 ) {
 	if let Some(Ok(cmd)) = command.take() {
@@ -221,10 +226,7 @@ pub enum GetSetStormValue {
 	},
 }
 
-pub fn adjust_storm(
-	mut command: ConsoleCommand<AdjustStorm>,
-	mut storm: Option<ResMut<Storm>>,
-) {
+pub fn adjust_storm(mut command: ConsoleCommand<AdjustStorm>, mut storm: Option<ResMut<Storm>>) {
 	if let Some(Ok(cmd)) = command.take() {
 		let Some(storm) = storm.as_mut() else {
 			reply_failed!(command, "Storm resource does not exist");

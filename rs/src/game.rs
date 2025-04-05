@@ -1,9 +1,10 @@
-use crate::game::mtn::terrain::StackedTerrainTextures;
-use crate::game::mtn::{Mountain, MountainScene};
+use crate::game::mtn::terrain::{StackedTerrainTextures, TexturesMap};
+use crate::game::mtn::{Mountain, MountainAssets, MountainScene};
 use crate::game::ocean::OceanSurface;
 use crate::setup_tracking;
 use crate::setup_tracking::{
-	IntoDependencyProvider, Progress, RegisterProvider, SetupKey, state_progress,
+	IntoDependencyProvider, Progress, RegisterProvider, SetupKey, single_spawn_progress,
+	state_progress,
 };
 use crate::state::GlobalState;
 use crate::state::GlobalState::InGame;
@@ -15,13 +16,14 @@ use bevy::ecs::intern::Interned;
 use bevy::ecs::query::QueryFilter;
 use bevy::ecs::schedule::ScheduleLabel;
 use bevy::ecs::system::SystemId;
+use bevy::ecs::system::lifetimeless::SCommands;
 use bevy::prelude::*;
 use bevy::scene::SceneInstance;
 use bevy::state::state::FreelyMutableState;
-use bevy_asset_loader::prelude::*;
 use serde::Deserialize;
-use setup_tracking::single_spawn_progress;
+use setup_tracking::assets_progress;
 use std::hash::{Hash, Hasher};
+use strum::VariantArray;
 
 pub mod building;
 pub mod cam;
@@ -52,20 +54,8 @@ impl Plugin for GamePlugin {
 			pause::PausePlugin,
 			tools::ToolsPlugin,
 		))
-		.add_sub_state::<GameLoadingState>()
-		.register_provider(load_assets.provides([AssetsLoaded.intern()]))
-		.add_loading_state(
-			// TODO: Custom progress tracking
-			LoadingState::new(GameLoadingState::LoadingAssets)
-				.continue_to_state(GameLoadingState::BuildingScene)
-				.load_collection::<mtn::MountainAssets>()
-				.load_collection::<mtn::terrain::TexturesMap>(),
-		);
+		.add_sub_state::<GameLoadingState>();
 	}
-}
-
-pub fn load_assets() {
-	// TODO: handle loading manually instead of relying on states
 }
 
 #[derive(SubStates, Default, Clone, PartialEq, Eq, Hash, Debug)]
@@ -125,10 +115,6 @@ macro_rules! new_game_setup_label {
 
 pub type GameSetupKey = Interned<dyn GameSetupLabel>;
 
-new_game_setup_label!(
-	AssetsLoaded,
-	state_progress(GameLoadingState::BuildingScene)
-);
 new_game_setup_label!(CameraSpawned, single_spawn_progress::<With<Camera3d>>);
 
 impl SetupKey for Interned<dyn GameSetupLabel> {
