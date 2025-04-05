@@ -40,9 +40,9 @@ const INIT_WAVE: Wave = Wave(
 
 const INIT_TIDE: WaveParams = WaveParams(
 	0.029, // frequency
-	2.0, // amplitude
-	1.5, // steepness
-	0.1, // speed
+	3.0, // amplitude
+	2.0, // steepness
+	0.2, // speed
 );
 
 struct Wave {
