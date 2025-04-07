@@ -1,6 +1,7 @@
 #![feature(iter_array_chunks)]
 #![feature(string_from_utf8_lossy_owned)]
 #![feature(mpmc_channel)]
+#![feature(try_trait_v2)]
 #![cfg_attr(
 	feature = "dev_tools",
 	feature(path_add_extension, generic_const_exprs)

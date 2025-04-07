@@ -19,7 +19,12 @@ impl Plugin for MainMenuPlugin {
 	}
 }
 
-pub fn setup_main_menu(mut commands: Commands, mut next_state: ResMut<NextState<GlobalState>>) {}
+pub fn setup_main_menu(mut cmds: Commands) {
+	cmds.spawn((
+		Camera2d,
+		StateScoped(GlobalState::MainMenu),
+	));
+}
 
 pub fn draw_main_menu(
 	mut cmds: Commands,

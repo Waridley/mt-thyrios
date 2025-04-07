@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use bevy::platform_support::collections::HashMap;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::Color32;
-use egui_snarl::ui::{PinInfo, SnarlStyle, SnarlViewer, WireStyle};
+use egui_snarl::ui::{NodeLayout, PinInfo, SnarlStyle, SnarlViewer, WireStyle};
 use egui_snarl::{InPin, InPinId, Node as SnarlNode, NodeId, OutPin, OutPinId, Snarl};
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -27,11 +27,31 @@ impl Plugin for SetupGraphVisPlugin {
 #[derive(Deref)]
 pub struct SetupGraphViewer<'a, K: SetupKey>(&'a SetupTracker<K>);
 
+impl<'a, K: SetupKey>  SetupGraphViewer<'a, K> {
+	pub fn key_color(&self, key: &K) -> Option<Color32> {
+		// Final outputs are white
+		self.dependants_of(key).next()?;
+		
+		let mut i = 0;
+		for (k, _) in self.entries().iter() {
+			if self.dependants_of(k).next().is_none() {
+				// Avoid skipping colors for outputs that will be white anyway
+				continue;
+			}
+			if *k == *key {
+				break;
+			}
+			i += 1;
+		}
+		
+		Some(COLORS[i % COLORS.len()])
+	}
+}
+
 const COLORS: &[Color32] = &[
 	Color32::RED,
 	Color32::from_rgb(255, 127, 0),
 	Color32::YELLOW,
-	Color32::from_rgb(127, 255, 0),
 	Color32::GREEN,
 	Color32::from_rgb(0, 255, 127),
 	Color32::from_rgb(0, 255, 255),
@@ -62,13 +82,9 @@ impl<K: SetupKey + Debug> SnarlViewer<SystemId> for SetupGraphViewer<'_, K> {
 		scale: f32,
 		snarl: &mut Snarl<SystemId>,
 	) -> PinInfo {
-		let kind = &self.providers()[&snarl[pin.id.node]].requires()[pin.id.input];
-		let fill = self
-			.entries()
-			.iter()
-			.enumerate()
-			.find_map(|(i, (k, _))| (*kind == *k).then(|| COLORS[i % COLORS.len()]));
-		ui.label(format!("{kind:?}"));
+		let key = &self.providers()[&snarl[pin.id.node]].requires()[pin.id.input];
+		let fill = self.key_color(key);
+		ui.label(format!("{key:?}"));
 		PinInfo { fill, ..default() }
 	}
 
@@ -79,13 +95,9 @@ impl<K: SetupKey + Debug> SnarlViewer<SystemId> for SetupGraphViewer<'_, K> {
 		scale: f32,
 		snarl: &mut Snarl<SystemId>,
 	) -> PinInfo {
-		let kind = &self.providers()[&snarl[pin.id.node]].provides()[pin.id.output];
-		let fill = self
-			.entries()
-			.iter()
-			.enumerate()
-			.find_map(|(i, (k, _))| (*kind == *k).then(|| COLORS[i % COLORS.len()]));
-		ui.label(format!("{kind:?}"));
+		let key = &self.providers()[&snarl[pin.id.node]].provides()[pin.id.output];
+		let fill = self.key_color(key);
+		ui.label(format!("{key:?}"));
 		PinInfo { fill, ..default() }
 	}
 }
@@ -119,7 +131,7 @@ pub fn sync_snarl<K: SetupKey>(
 			for (j, id) in stage.into_iter().enumerate() {
 				if !nodes.iter().any(|(_, node)| *node == id) {
 					let node = snarl.snarl.insert_node(
-						bevy_egui::egui::Pos2::new(i as f32 * 400.0, j as f32 * 64.0),
+						bevy_egui::egui::Pos2::new(i as f32 * 400.0, j as f32 * 96.0),
 						id,
 					);
 					nodes.insert(node, id);
@@ -167,10 +179,11 @@ pub fn visualize_setup_graph<K: SetupKey + Debug>(
 ) {
 	let ctx = r!(ctx.try_ctx_mut());
 	let style = SnarlStyle {
-		pin_fill: Some(Color32::GREEN),
+		node_layout: Some(NodeLayout::Sandwich),
+		pin_fill: Some(Color32::WHITE),
 		wire_width: Some(2.0),
 		wire_style: Some(WireStyle::AxisAligned {
-			corner_radius: 20.0,
+			corner_radius: 8.0,
 		}),
 		bg_pattern_stroke: Some(bevy_egui::egui::Stroke {
 			width: 1.0,

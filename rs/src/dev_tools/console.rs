@@ -29,7 +29,9 @@ impl Plugin for DevConsolePlugin {
 		.add_console_command::<ViewSetupGraph, _>(view_setup_graph)
 		.add_console_command::<SetLight, _>(set_light)
 		.add_console_command::<AdjustOcean, _>(adjust_ocean)
-		.add_console_command::<AdjustStorm, _>(adjust_storm);
+		.add_console_command::<AdjustStorm, _>(adjust_storm)
+		.add_console_command::<Hide, _>(set_visibility::<Hide>)
+		.add_console_command::<Show, _>(set_visibility::<Show>);
 	}
 }
 
@@ -243,5 +245,83 @@ pub fn adjust_storm(mut command: ConsoleCommand<AdjustStorm>, mut storm: Option<
 				reply!(command, "{:?}", storm.intensity);
 			}
 		}
+	}
+}
+
+/// Hide entities with name matching a glob pattern.
+#[derive(Parser, Debug, ConsoleCommand)]
+#[command(name = "hide")]
+pub struct Hide {
+	glob: String,
+}
+
+/// Show entities with name matching a glob pattern.
+#[derive(Parser, Debug, ConsoleCommand)]
+#[command(name = "show")]
+pub struct Show {
+	glob: String,
+	#[arg(
+		short,
+		long,
+		default_value = "true",
+		num_args = 0..=1,
+		value_parser = [
+			PossibleValue::new("true").aliases(["t", "yes", "y"]),
+			PossibleValue::new("false").aliases(["f", "no", "n"]),
+		]
+	)]
+	inherited: String,
+}
+
+pub trait SetVisibility {
+	fn glob(&self) -> &str;
+	fn set_visibility(&self, vis: &mut Visibility);
+}
+
+impl SetVisibility for Hide {
+	fn glob(&self) -> &str {
+		&self.glob
+	}
+	fn set_visibility(&self, vis: &mut Visibility) {
+		*vis = Visibility::Hidden;
+	}
+}
+
+impl SetVisibility for Show {
+	fn glob(&self) -> &str {
+		&self.glob
+	}
+	fn set_visibility(&self, vis: &mut Visibility) {
+		if self.inherited.starts_with('t') || self.inherited.starts_with('y') {
+			*vis = Visibility::Inherited;
+		} else if self.inherited.starts_with('f') || self.inherited.starts_with('n') {
+			*vis = Visibility::Visible;
+		} else {
+			unreachable!();
+		}
+	}
+}
+
+pub fn set_visibility<C: SetVisibility>(
+	mut command: ConsoleCommand<C>,
+	mut q: Query<(&Name, &mut Visibility)>,
+) {
+	if let Some(Ok(cmd)) = command.take() {
+		let pat = match glob::Pattern::new(cmd.glob()) {
+			Ok(p) => p,
+			Err(e) => {
+				reply_failed!(command, "{e}");
+				return;
+			},
+		};
+		let mut found = false;
+		for (_, mut vis) in q.iter_mut().filter(|(name, _)| pat.matches(name.as_str())) {
+			cmd.set_visibility(&mut *vis);
+			found = true;
+		}
+		if !found {
+			reply_failed!(command, "couldn't find entity matching {:?}", cmd.glob());
+			return;
+		};
 	}
 }

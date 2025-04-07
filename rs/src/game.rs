@@ -115,8 +115,6 @@ macro_rules! new_game_setup_label {
 
 pub type GameSetupKey = Interned<dyn GameSetupLabel>;
 
-new_game_setup_label!(CameraSpawned, single_spawn_progress::<With<Camera3d>>);
-
 impl SetupKey for Interned<dyn GameSetupLabel> {
 	fn register_progress_checker(&self, world: &mut World) -> SystemId<(), Progress> {
 		self.0.register_progress_checker(world)

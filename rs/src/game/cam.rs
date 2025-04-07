@@ -1,7 +1,7 @@
 use super::mtn::{Mountain, MountainHydrated, MountainPeak};
 use crate::game::GameLoadingState::SceneBuilt;
-use crate::game::{CameraSpawned, GameSetupKey, GameSetupLabel};
-use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider};
+use crate::game::{GameSetupKey, GameSetupLabel};
+use crate::setup_tracking::{single_spawn_progress, IntoDependencyProvider, RegisterProvider};
 use crate::state::GlobalState::{self, InGame, LoadingGame};
 use crate::util::{IntoSetupStep, single_entity_exists};
 use bevy::core_pipeline::bloom::Bloom;
@@ -9,6 +9,9 @@ use bevy::core_pipeline::experimental::taa::TemporalAntiAliasing;
 use bevy::core_pipeline::prepass::DepthPrepass;
 use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
+use crate::new_game_setup_label;
+
+new_game_setup_label!(CameraSpawned, single_spawn_progress::<With<Camera3d>>);
 
 pub struct GameCamPlugin;
 

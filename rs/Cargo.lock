@@ -3748,6 +3748,7 @@ dependencies = [
  "egui-snarl",
  "egui_colors",
  "enum-map",
+ "glob",
  "gltf",
  "gltf-json",
  "leafwing-input-manager",

@@ -11,6 +11,7 @@ use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::ops::FromResidual;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -455,6 +456,24 @@ impl From<bool> for Progress {
 	}
 }
 
+/// For question mark operator
+/// ```
+/// # #[derive(Resource)]
+/// # struct Foo;
+/// fn foo_exists(foo: Option<Res<Foo>>) -> Progress {
+///     let foo = foo?;
+/// }
+/// ```
+impl<T> FromResidual<Option<T>> for Progress {
+	fn from_residual(val: Option<T>) -> Self {
+		if let Some(val) = val {
+			Self::DONE
+		} else {
+			Self::ZERO
+		}
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct InvalidSetupGraph<K: SetupKey + Debug> {
 	unprovided: HashSet<K>,
@@ -508,7 +527,7 @@ pub trait AssetCollection: Resource {
 	fn iter_ids(&self) -> impl Iterator<Item = UntypedAssetId>;
 }
 
-pub fn load_asset_collection<C: AssetCollection + FromWorld>(
+pub fn load_assets<C: AssetCollection + FromWorld>(
 	mut cmds: Commands,
 	collection: Option<Res<C>>,
 ) {
