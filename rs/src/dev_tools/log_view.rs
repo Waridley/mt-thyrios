@@ -5,7 +5,6 @@ use bevy::log::{BoxedLayer, tracing_subscriber};
 use bevy::prelude::*;
 use bevy_console::ConsoleConfiguration;
 use bevy_egui::EguiContexts;
-use std::io::BufRead;
 use std::sync::mpmc;
 use std::sync::mpmc::TryRecvError;
 use tiny_bail::prelude::r;
@@ -58,7 +57,7 @@ impl LogViewBuffer {
 			let bytes = match self.rx.try_recv() {
 				Ok(bytes) => bytes,
 				Err(TryRecvError::Empty) => break,
-				Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+				Err(e) => return Err(std::io::Error::other(e)),
 			};
 			needs_relayout = true;
 			let s = String::from_utf8_lossy_owned(bytes);
@@ -104,7 +103,7 @@ impl LogViewBuffer {
 		}
 
 		egui::Window::new("Logs")
-			.open(&mut *open)
+			.open(&mut open)
 			.min_width(720.0)
 			.anchor(Align2::LEFT_BOTTOM, [0.0, 0.0])
 			.frame(egui::Frame {
@@ -128,7 +127,7 @@ impl std::io::Write for SenderWriter {
 	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
 		self.0
 			.send(buf.into())
-			.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, "failed to send line"))?;
+			.map_err(|e| std::io::Error::other(format!("failed to send line: {e}")))?;
 		Ok(buf.len())
 	}
 

@@ -4,21 +4,16 @@
 #![feature(try_trait_v2)]
 #![cfg_attr(
 	feature = "dev_tools",
-	feature(path_add_extension, generic_const_exprs)
+	feature(path_add_extension)
 )]
 
+use crate::util::FinishedProcessing;
 use crate::util::gltf::{GlbSaver, GltfZUpTransformer};
-use crate::util::{FinishedProcessing, make_new_gltf_scenes_z_up};
 use bevy::asset::processor::LoadTransformAndSave;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
-use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::gltf::{GltfLoader, GltfPlugin};
-use bevy::log::LogPlugin;
-use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
-use bevy::tasks::AsyncComputeTaskPool;
 use bevy::window::{PresentMode, PrimaryWindow};
-use bevy_egui::EguiUserTextures;
 use std::path::PathBuf;
 
 #[cfg(feature = "dev_tools")]
@@ -85,7 +80,7 @@ fn main() -> AppExit {
 			..default()
 		});
 		app.add_plugins(dev_tools::log_view::LogViewPlugin);
-		def_plugs.set(LogPlugin {
+		def_plugs.set(bevy::log::LogPlugin {
 			custom_layer: dev_tools::log_view::LogViewBuffer::make_layer,
 			..default()
 		})
@@ -93,7 +88,10 @@ fn main() -> AppExit {
 
 	app.add_plugins(def_plugs);
 	#[cfg(feature = "dev_tools")]
-	app.add_plugins((FrameTimeDiagnosticsPlugin::default(), WireframePlugin));
+	app.add_plugins((
+		bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+		bevy::pbr::wireframe::WireframePlugin,
+	));
 	app.add_plugins(TemporalAntiAliasPlugin);
 
 	app.add_plugins((

@@ -2,7 +2,7 @@ use crate::game::mtn::terrain::{
 	StackedTerrainTextures, TerrainKind, TerrainTexturesLoaded, TexturesMap, stack_terrain_textures,
 };
 use crate::game::{
-	GameLoadingState, GameSetupKey, GameSetupLabel, mtn::terrain::TerrainTexturesStacked,
+	GameLoadingState, GameSetupLabel, mtn::terrain::TerrainTexturesStacked,
 };
 use crate::new_game_setup_label;
 use crate::setup_tracking::{
@@ -10,38 +10,24 @@ use crate::setup_tracking::{
 	load_assets, resource_progress, single_spawn_progress,
 };
 use crate::state::GlobalState;
-use crate::util::{FinishedProcessing, GridMesh, MeshExt};
+use crate::util::MeshExt;
 use GlobalState::{InGame, LoadingGame};
-use bevy::asset::{RenderAssetUsages, UntypedAssetId};
-use bevy::color::palettes::basic::FUCHSIA;
-use bevy::ecs::system::IntoObserverSystem;
-use bevy::image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
+use bevy::asset::UntypedAssetId;
+use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::math::Vec3A;
 use bevy::math::bounding::{
-	Aabb3d, Bounded3d, BoundingSphere, BoundingVolume, IntersectsVolume, RayCast3d,
+	Aabb3d, Bounded3d, BoundingVolume, IntersectsVolume, RayCast3d,
 };
-use bevy::pbr::wireframe::Wireframe;
-use bevy::pbr::{
-	ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
-};
-use bevy::picking::mesh_picking::ray_cast::ray_aabb_intersection_3d;
+use bevy::pbr::ExtendedMaterial;
 use bevy::platform_support::collections::HashSet;
 use bevy::prelude::*;
-use bevy::render::mesh::skinning::SkinnedMesh;
-use bevy::render::mesh::{
-	Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, VertexAttributeValues,
-};
-use bevy::render::render_resource::{
-	AsBindGroup, Extent3d, Face, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
-	TextureDimension, VertexFormat,
-};
+use bevy::render::mesh::Indices;
+use bevy::render::render_resource::Face;
 use bevy::scene::SceneInstance;
 use smolset::SmolSet;
 use std::cmp::Ordering;
-use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::ops::Index;
-use terrain::{ATTRIBUTE_TERRAIN_WEIGHTS_0_3, ATTRIBUTE_TERRAIN_WEIGHTS_4_7, TerrainMaterial};
+use terrain::TerrainMaterial;
 use tiny_bail::prelude::{r, rq};
 
 pub mod terrain;
@@ -137,7 +123,7 @@ new_game_setup_label!(MtnAssetsInserted, resource_progress::<MountainAssets>);
 new_game_setup_label!(MtnAssetsLoaded, assets_progress::<MountainAssets>);
 new_game_setup_label!(MtnAssetsProcessed, mtn_assets_process_progress);
 
-fn process_mtn_assets(mut mtn_assets: ResMut<MountainAssets>, mut images: ResMut<Assets<Image>>) {
+fn process_mtn_assets(mtn_assets: ResMut<MountainAssets>, mut images: ResMut<Assets<Image>>) {
 	let img = rq!(images.get_mut(mtn_assets.terrain_textures.id()));
 	img.reinterpret_stacked_2d_as_array(6);
 	img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
@@ -165,7 +151,7 @@ pub fn spawn_mountain(
 	assets: Res<MountainAssets>,
 	existing_scene: Option<Single<Entity, With<MountainScene>>>,
 ) {
-	if let Some(_) = existing_scene {
+	if existing_scene.is_some() {
 		return;
 	}
 	// let mut mtn = Mountain {
@@ -245,7 +231,7 @@ pub fn setup_mountain(
 		}
 		if *name == Name::new("MountainMeshMesh") {
 			debug!("MountainMesh: {id:?}");
-			let mut mtn = Mountain {
+			let mtn = Mountain {
 				peak_elevation: PEAK_ELEVATION,
 				plateau_radius: RADIUS_TOP,
 				slope: SLOPE,
@@ -253,7 +239,7 @@ pub fn setup_mountain(
 			};
 			let mesh = r!(mesh_handles.get(id));
 			let mesh = r!(meshes.get_mut(&mesh.0));
-			let graph = MeshGraph::build(&mesh).unwrap();
+			let graph = MeshGraph::build(mesh).unwrap();
 			cmds.entity(id)
 				.remove::<MeshMaterial3d<StandardMaterial>>()
 				.insert((
@@ -445,7 +431,7 @@ impl Ray3dExt for Ray3d {
 			.map(Vec3::from_array)
 			.enumerate()
 			.map(|(i, pos)| (i, self.distance_squared_from_point(pos)))
-			.min_by(|(_, da), (_, db)| da.partial_cmp(&db).unwrap_or(Ordering::Equal))
+			.min_by(|(_, da), (_, db)| da.partial_cmp(db).unwrap_or(Ordering::Equal))
 			.map(|(i, _)| i)
 	}
 
@@ -512,7 +498,7 @@ impl Ray3dExt for Ray3d {
 
 		let t_vec = self.origin - a;
 		let u = t_vec.dot(p_vec) * inv_det;
-		if u < 0.0 || u > 1.0 {
+		if !(0.0..=1.0).contains(&u) {
 			return None;
 		}
 
@@ -678,7 +664,7 @@ impl Bvh<TriIdx> {
 }
 
 fn cull_by_dot_product(dot: f32, cull_mode: Option<Face>) -> Option<()> {
-	if dot <= f32::EPSILON && dot >= -f32::EPSILON
+	if dot.abs() <= f32::EPSILON
 		|| matches!(cull_mode, None | Some(Face::Back)) && dot < -f32::EPSILON
 		|| matches!(cull_mode, None | Some(Face::Front)) && dot > f32::EPSILON
 	{
@@ -710,7 +696,7 @@ pub fn debug_find_triangle_intersected_by_ray(
 	graph: &MeshGraph,
 	cull_mode: Option<Face>,
 	mut dbg_aabb: impl FnMut(&BvhNode<TriIdx>, usize),
-	mut dbg_tris: impl FnOnce(&HashSet<TriIdx>),
+	dbg_tris: impl FnOnce(&HashSet<TriIdx>),
 ) -> Option<(TriIdx, f32)> {
 	let positions = mesh.positions().unwrap();
 

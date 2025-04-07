@@ -1,14 +1,11 @@
 use super::mtn::{Mountain, MountainHydrated, MountainPeak};
-use crate::game::GameLoadingState::SceneBuilt;
-use crate::game::{GameSetupKey, GameSetupLabel};
+use crate::game::GameSetupLabel;
 use crate::new_game_setup_label;
-use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
-use crate::state::GlobalState::{self, InGame, LoadingGame};
-use crate::util::{IntoSetupStep, single_entity_exists};
+use crate::setup_tracking::{single_spawn_progress, IntoDependencyProvider, RegisterProvider};
+use crate::state::GlobalState::{self, InGame};
 use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasing;
 use bevy::core_pipeline::prepass::DepthPrepass;
-use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
 
 new_game_setup_label!(CameraSpawned, single_spawn_progress::<With<Camera3d>>);

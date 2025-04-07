@@ -6,8 +6,8 @@ use bevy::platform_support::collections::HashMap;
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::Color32;
-use egui_snarl::ui::{NodeLayout, PinInfo, SnarlStyle, SnarlViewer, WireStyle};
-use egui_snarl::{InPin, InPinId, Node as SnarlNode, NodeId, OutPin, OutPinId, Snarl};
+use egui_snarl::ui::{NodeLayout, PinInfo, SnarlPin, SnarlStyle, SnarlViewer, WireStyle};
+use egui_snarl::{InPin, InPinId, NodeId, OutPin, OutPinId, Snarl};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tiny_bail::prelude::r;
@@ -79,9 +79,9 @@ impl<K: SetupKey + Debug> SnarlViewer<SystemId> for SetupGraphViewer<'_, K> {
 		&mut self,
 		pin: &InPin,
 		ui: &mut Ui,
-		scale: f32,
+		_scale: f32,
 		snarl: &mut Snarl<SystemId>,
-	) -> PinInfo {
+	) -> impl SnarlPin + 'static {
 		let key = &self.providers()[&snarl[pin.id.node]].requires()[pin.id.input];
 		let fill = self.key_color(key);
 		ui.label(format!("{key:?}"));
@@ -92,9 +92,9 @@ impl<K: SetupKey + Debug> SnarlViewer<SystemId> for SetupGraphViewer<'_, K> {
 		&mut self,
 		pin: &OutPin,
 		ui: &mut Ui,
-		scale: f32,
+		_scale: f32,
 		snarl: &mut Snarl<SystemId>,
-	) -> PinInfo {
+	) -> impl SnarlPin + 'static {
 		let key = &self.providers()[&snarl[pin.id.node]].provides()[pin.id.output];
 		let fill = self.key_color(key);
 		ui.label(format!("{key:?}"));

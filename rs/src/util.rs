@@ -1,8 +1,8 @@
 use crate::game::mtn::Mountain;
-use bevy::ecs::query::{QueryFilter, QuerySingleError};
+use bevy::ecs::query::QueryFilter;
 use bevy::ecs::schedule::ScheduleConfigs;
 use bevy::ecs::system::{ScheduleSystem, SystemParam};
-use bevy::gltf::{GltfError, GltfMesh};
+use bevy::gltf::GltfMesh;
 use bevy::math::Vec3A;
 use bevy::math::bounding::Aabb3d;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
@@ -12,7 +12,6 @@ use bevy::{
 	render::mesh::PrimitiveTopology,
 };
 use std::cmp::Ordering;
-use std::cmp::Ordering::{Equal, Greater, Less};
 use std::error::Error;
 
 pub mod gltf;
@@ -39,7 +38,7 @@ impl<F: Vertex3Difier> CircleGridMeshBuilder<F> {
 		self
 	}
 
-	pub fn map_vertices<NewF: Vertex3Difier>(mut self, f: NewF) -> CircleGridMeshBuilder<NewF> {
+	pub fn map_vertices<NewF: Vertex3Difier>(self, f: NewF) -> CircleGridMeshBuilder<NewF> {
 		CircleGridMeshBuilder {
 			circle: self.circle,
 			vert_xform: f,
@@ -70,7 +69,7 @@ impl<F: Vertex3Difier> MeshBuilder for CircleGridMeshBuilder<F> {
 		let d = r * 2.0;
 		for y in 0..y_verts {
 			for x in 0..x_verts {
-				let mut cell: &mut Option<u32> = &mut grid[y as usize][x as usize];
+				let cell: &mut Option<u32> = &mut grid[y as usize][x as usize];
 				let y = ((y as f32 * d) / slices as f32) - r;
 				let x = ((x as f32 * d) / slices as f32) - r;
 				if Vec2::new(x, y).length_squared() <= r * r {
@@ -443,7 +442,7 @@ pub fn make_new_gltf_scenes_z_up(
 		let gltf = gltfs.get(id).unwrap();
 		let mut processor = gltf.process(&mut assets);
 		processor.make_z_up();
-		finish_events.send(FinishedProcessing { id });
+		finish_events.write(FinishedProcessing { id });
 	}
 }
 
@@ -505,7 +504,7 @@ where
 
 mod asset_mut {
 	use bevy::asset::{Asset, AssetId, Assets};
-	use bevy::prelude::{DetectChanges, Mut, ResMut};
+	use bevy::prelude::{Mut, ResMut};
 
 	pub struct AssetMut<'w, A: Asset> {
 		assets: Mut<'w, Assets<A>>,

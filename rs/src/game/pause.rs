@@ -1,11 +1,8 @@
 use crate::settings_menu::SettingsMenu;
 use crate::state::GlobalState;
-use crate::ui::egui::text::LayoutJob;
-use crate::ui::egui::{Color32, Rounding};
 use crate::ui::{Menu, MenuCommandsExt, MenuStack, menu_button};
 use bevy::prelude::*;
-use bevy_egui::egui::text::LayoutSection;
-use bevy_egui::egui::{Align, Align2, Margin, RichText, Stroke, Widget, WidgetText};
+use bevy_egui::egui::{Align2, Widget};
 use bevy_egui::{EguiContexts, egui};
 // use bevy_steamworks::Input;
 use tiny_bail::prelude::r;
@@ -97,7 +94,7 @@ impl PauseMenu {
 						cmds.push_menu_to_top(SettingsMenu {});
 					}
 					if menu_button("Quit").ui(ui).clicked() {
-						exit_events.send(AppExit::Success);
+						exit_events.write(AppExit::Success);
 					}
 				})
 			});
@@ -115,9 +112,9 @@ pub trait PauseGame {
 impl PauseGame for Commands<'_, '_> {
 	fn pause(&mut self) {
 		self.queue(|world: &mut World| {
-			if let Err(_) = world.resource_mut::<MenuStack>().push(PauseMenu {
+			if world.resource_mut::<MenuStack>().push(PauseMenu {
 				should_focus_resume_btn: true,
-			}) {
+			}).is_err() {
 				warn!("Game was already paused");
 			}
 			world.resource_mut::<Time<Virtual>>().pause();

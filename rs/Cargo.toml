@@ -60,3 +60,4 @@ opt-level = 1
 
 [lints.clippy]
 too-many-arguments = "allow"
+type-complexity = "allow"

@@ -1,25 +1,22 @@
 use crate::game::cam::CamAnchor;
-use crate::game::{GameSetupKey, GameSetupLabel};
+use crate::game::GameSetupLabel;
 use crate::new_game_setup_label;
 use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
 use crate::state::GlobalState;
 use crate::util::{GridMesh, MeshExt};
-use GlobalState::{InGame, LoadingGame};
+use GlobalState::InGame;
 use bevy::asset::ReflectAsset;
-use bevy::math::{U16Vec2, Vec3A};
+use bevy::math::Vec3A;
 use bevy::pbr::{
 	ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
-	OpaqueRendererMethod,
 };
 use bevy::prelude::*;
 use bevy::render::mesh::MeshVertexBufferLayoutRef;
 use bevy::render::primitives::Aabb;
 use bevy::render::render_resource::{
-	AsBindGroup, RenderPipelineDescriptor, ShaderDefVal, ShaderRef, ShaderType,
+	AsBindGroup, RenderPipelineDescriptor, ShaderRef, ShaderType,
 	SpecializedMeshPipelineError,
 };
-use rand::Rng;
-use std::f32::consts::TAU;
 
 pub struct OceanPlugin;
 

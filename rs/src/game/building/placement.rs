@@ -3,7 +3,7 @@ use crate::{
 	game::tools::{ReflectTool, Tool},
 	state::GlobalState,
 };
-use bevy::asset::RenderAssetUsages;
+use bevy::asset::{weak_handle, RenderAssetUsages};
 use bevy::ecs::query::QueryData;
 use bevy::pbr::{MaterialPipeline, MaterialPipelineKey};
 use bevy::prelude::*;
@@ -16,7 +16,7 @@ use bevy::render::render_resource::{
 pub struct PlacementPlugin;
 
 pub const DEFAULT_INTERSECTION_DEPTH_MAP_HANDLE: Handle<Image> =
-	Handle::weak_from_u128(72210997757282117673427955322110405306);
+	weak_handle!("c2fb1c89-954d-4285-92c6-be35d09cfcbe");
 
 impl Plugin for PlacementPlugin {
 	fn build(&self, app: &mut App) {
@@ -27,7 +27,7 @@ impl Plugin for PlacementPlugin {
 
 	fn finish(&self, app: &mut App) {
 		let mut images = app.world_mut().resource_mut::<Assets<Image>>();
-		let mut img = new_intersection_depth_map(64, |t| {
+		let img = new_intersection_depth_map(64, |t| {
 			Color::WHITE.with_alpha(1.0 - (t * 5.0).clamp(0.0, 1.0).powf(0.25))
 		});
 		images.insert(DEFAULT_INTERSECTION_DEPTH_MAP_HANDLE.id(), img);
@@ -91,10 +91,10 @@ impl Material for MtnCursorMaterial {
 	}
 
 	fn specialize(
-		pipeline: &MaterialPipeline<Self>,
+		_pipeline: &MaterialPipeline<Self>,
 		descriptor: &mut RenderPipelineDescriptor,
-		layout: &MeshVertexBufferLayoutRef,
-		key: MaterialPipelineKey<Self>,
+		_layout: &MeshVertexBufferLayoutRef,
+		_key: MaterialPipelineKey<Self>,
 	) -> Result<(), SpecializedMeshPipelineError> {
 		descriptor.primitive.cull_mode = None;
 		Ok(())

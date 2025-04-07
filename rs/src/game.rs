@@ -1,29 +1,13 @@
-use crate::game::mtn::terrain::{StackedTerrainTextures, TexturesMap};
-use crate::game::mtn::{Mountain, MountainAssets, MountainScene};
-use crate::game::ocean::OceanSurface;
-use crate::setup_tracking;
-use crate::setup_tracking::{
-	IntoDependencyProvider, Progress, RegisterProvider, SetupKey, single_spawn_progress,
-	state_progress,
-};
+use crate::setup_tracking::{Progress, SetupKey, SetupTrackingPlugin};
 use crate::state::GlobalState;
 use crate::state::GlobalState::InGame;
 use crate::util::set_state_to;
 use GlobalState::LoadingGame;
-use bevy::app::DynEq;
 use bevy::ecs::define_label;
 use bevy::ecs::intern::Interned;
-use bevy::ecs::query::QueryFilter;
-use bevy::ecs::schedule::ScheduleLabel;
 use bevy::ecs::system::SystemId;
-use bevy::ecs::system::lifetimeless::SCommands;
 use bevy::prelude::*;
-use bevy::scene::SceneInstance;
-use bevy::state::state::FreelyMutableState;
-use serde::Deserialize;
-use setup_tracking::assets_progress;
-use std::hash::{Hash, Hasher};
-use strum::VariantArray;
+use std::hash::Hash;
 
 pub mod building;
 pub mod cam;
@@ -41,7 +25,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins((
-			setup_tracking::SetupTrackingPlugin::<GameSetupKey, _, _, _>::new(
+			SetupTrackingPlugin::<GameSetupKey, _, _, _>::new(
 				in_state(LoadingGame),
 				set_state_to(InGame),
 			),
@@ -125,7 +109,7 @@ impl SetupKey for Interned<dyn GameSetupLabel> {
 	}
 }
 
-#[cfg(feature = "bevy/track_change_detection")]
+#[cfg(feature = "track_changes")]
 pub fn debug_changed_state<S: FreelyMutableState>(next: Option<Res<NextState<S>>>) {
 	if let Some(global) = next {
 		if global.is_changed() {

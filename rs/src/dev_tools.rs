@@ -1,19 +1,13 @@
-use crate::dev_tools::paint::{BrushShape, Paintbrush};
-use crate::game::GameLoadingState;
-use crate::game::mtn::terrain::TerrainKind;
-use crate::game::ocean::{OceanMaterial, OceanSurface, Storm};
+use crate::game::ocean::{OceanSurface, Storm};
 use crate::state::GlobalState::InGame;
 use bevy::color::palettes::basic::YELLOW;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::input::common_conditions::input_toggle_active;
-use bevy::pbr::ExtendedMaterial;
 use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
-use bevy_console::ConsolePlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use console::DevConsolePlugin;
 use setup_graph_vis::SetupGraphVisPlugin;
-use smolset::SmolSet;
 
 pub mod console;
 pub mod log_view;
@@ -39,13 +33,13 @@ impl Plugin for ToolsPlugin {
 
 pub fn toggles(
 	mut cmds: Commands,
-	mut keys: Res<ButtonInput<KeyCode>>,
+	keys: Res<ButtonInput<KeyCode>>,
 	q: Option<Single<Entity, With<FpsText>>>,
 	mut wireframe: ResMut<WireframeConfig>,
 ) {
 	if keys.just_pressed(KeyCode::F10) {
 		if let Some(entity) = q {
-			cmds.entity(*entity).despawn_recursive();
+			cmds.entity(*entity).despawn();
 		} else {
 			cmds.spawn((FpsText, Text("FPS: ...".into()), TextColor(YELLOW.into())));
 		}

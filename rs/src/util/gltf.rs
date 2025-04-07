@@ -3,15 +3,13 @@ use bevy::asset::io::Writer;
 use bevy::asset::saver::{AssetSaver, SavedAsset};
 use bevy::asset::transformer::{AssetTransformer, TransformedAsset};
 use bevy::asset::{
-	AssetLoader, AsyncWriteExt, ErasedLoadedAsset, RenderAssetUsages, UntypedAssetId,
+	AssetLoader, AsyncWriteExt, RenderAssetUsages, UntypedAssetId,
 };
 use bevy::gltf::{GltfLoader, GltfLoaderSettings, GltfMesh, GltfNode};
-use bevy::platform_support::collections::{HashMap, HashSet};
+use bevy::platform_support::collections::HashMap;
 use bevy::prelude::*;
-use bevy::render::mesh::VertexFormat::Unorm8x4Bgra;
 use bevy::render::mesh::{Indices, MeshVertexAttribute};
 use bevy::render::render_resource::VertexFormat;
-use bevy::tasks::ConditionalSendFuture;
 use gltf::Glb;
 use gltf::binary::Header;
 use gltf_json::accessor::GenericComponentType;
@@ -111,7 +109,7 @@ impl AssetSaver for GlbSaver {
 		let gltf_meshes = pending_meshes
 			.into_iter()
 			.map(|pending_gltf_mesh| {
-				let (bevy_mesh_ids, primitives) = pending_gltf_mesh
+				let (_bevy_mesh_ids, primitives) = pending_gltf_mesh
 					.primitives
 					.into_iter()
 					.map(|(pending_attrs, pending_primitive)| {
@@ -367,12 +365,12 @@ fn append_mesh(bytes: &mut Vec<u8>, mesh: &Mesh) -> PendingAttributes {
 			Indices::U16(indices) => (
 				Stride(size_of::<u16>()),
 				GenericComponentType(gltf_json::accessor::ComponentType::U16),
-				bytemuck::cast_slice(&indices),
+				bytemuck::cast_slice(indices),
 			),
 			Indices::U32(indices) => (
 				Stride(size_of::<u32>()),
 				GenericComponentType(gltf_json::accessor::ComponentType::U32),
-				bytemuck::cast_slice(&indices),
+				bytemuck::cast_slice(indices),
 			),
 		};
 		let offset = bytes.len();
@@ -450,14 +448,14 @@ fn push_scene(
 	mesh_ids: &HashMap<AssetId<GltfMesh>, Index<gltf_json::mesh::Mesh>>,
 ) -> Index<gltf_json::Scene> {
 	if asset.scenes.len() > 1 {
-		let _scene: &Scene = &*asset.get_labeled(deps[&id.untyped()]).unwrap();
+		let _scene: &Scene = &asset.get_labeled(deps[&id.untyped()]).unwrap();
 		todo!("figure out how to associate nodes with specific scenes");
 		// We can't query the Scene's world with only a shared reference.
 		// (yet -- see https://github.com/bevyengine/bevy/issues/3774)
 	}
 	let mut root_nodes = asset.nodes.iter().collect::<Vec<_>>();
 	for node in asset.nodes.iter() {
-		let node: &GltfNode = &*asset.get_labeled(deps[&node.id().untyped()]).unwrap();
+		let node: &GltfNode = &asset.get_labeled(deps[&node.id().untyped()]).unwrap();
 		root_nodes.retain(|maybe_root| !node.children.contains(*maybe_root));
 	}
 	let mut nodes = asset
@@ -544,11 +542,11 @@ fn pending_node(
 	deps: &HashMap<UntypedAssetId, &str>,
 	mesh_ids: &HashMap<AssetId<GltfMesh>, Index<gltf_json::mesh::Mesh>>,
 ) -> PendingNode {
-	let node: &GltfNode = &*asset.get_labeled(deps[&id.untyped()]).unwrap();
+	let node: &GltfNode = &asset.get_labeled(deps[&id.untyped()]).unwrap();
 	let children = node.children.iter().map(Handle::id).collect::<Vec<_>>();
 	PendingNode {
 		camera: None, // TODO find cameras
-		children: if children.len() > 0 {
+		children: if !children.is_empty() {
 			Some(children)
 		} else {
 			None

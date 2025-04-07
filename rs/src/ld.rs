@@ -20,7 +20,7 @@ pub fn spawn_loading_screen(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<ColorMaterial>>,
 ) {
-	cmds.spawn((Camera2d::default(), StateScoped(LoadingGame)));
+	cmds.spawn((Camera2d, StateScoped(LoadingGame)));
 	let mat = mats.add(ColorMaterial::default());
 	cmds.spawn((
 		LoadingSpinner,

@@ -1,19 +1,15 @@
 use bevy::asset::UntypedAssetId;
 use bevy::ecs::query::QueryFilter;
-use bevy::ecs::schedule::{BoxedCondition, ScheduleConfigs};
-use bevy::ecs::system::{BoxedSystem, SystemId};
+use bevy::ecs::system::SystemId;
 use bevy::platform_support::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use nutype::nutype;
-use std::arch::x86_64::_CMP_FALSE_OQ;
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::FromResidual;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Mutex;
 
 pub struct SetupTrackingPlugin<K: SetupKey, C: Condition<M>, M, Fin: IntoSystem<(), (), ()>> {
 	condition: Mutex<Option<C>>,
@@ -160,22 +156,22 @@ impl<K: SetupKey> SetupTracker<K> {
 	where
 		K: Debug,
 	{
-		world.resource_scope::<SetupTracker<K>, _>(|world, tracker| {
+		world.resource_scope::<SetupTracker<K>, _>(|_, tracker| {
 			let mut unprovided = tracker.entries.keys().cloned().collect::<HashSet<_>>();
 			let mut providers = HashMap::<K, Vec<SystemId>>::default();
-			let mut cyclic_dependencies = HashSet::<K>::default();
+			let cyclic_dependencies = HashSet::<K>::default();
 			for (system, info) in tracker.providers.iter() {
 				for provision in &info.provides {
 					providers
 						.entry(provision.clone())
-						.or_insert_with(|| Vec::new())
+						.or_insert_with(Vec::new)
 						.push(*system);
 					unprovided.remove(provision);
 				}
 			}
 			providers.retain(|_, providers| providers.len() > 1);
 			warn!("TODO: Detect cycles");
-			if unprovided.len() > 0 || providers.len() > 0 || cyclic_dependencies.len() > 0 {
+			if !unprovided.is_empty() || !providers.is_empty() || !cyclic_dependencies.is_empty() {
 				Err(InvalidSetupGraph {
 					unprovided,
 					duplicate_providers: providers,
@@ -219,7 +215,7 @@ impl<K: SetupKey> SetupTracker<K> {
 			info.provides
 				.iter()
 				.enumerate()
-				.find(|(i, item)| **item == *key)
+				.find(|(_, item)| **item == *key)
 				.map(|(i, _)| (*id, i))
 		})
 	}
@@ -232,7 +228,7 @@ impl<K: SetupKey> SetupTracker<K> {
 			info.requires
 				.iter()
 				.enumerate()
-				.find(|(i, item)| **item == *key)
+				.find(|(_, item)| **item == *key)
 				.map(|(i, _)| (*id, i))
 		})
 	}
@@ -242,7 +238,7 @@ impl<K: SetupKey> SetupTracker<K> {
 		let mut stages: Vec<Vec<SystemId>> = Vec::new();
 		let mut providers = self.providers.clone();
 
-		while providers.len() > 0 {
+		while !providers.is_empty() {
 			let mut stage = Vec::new();
 			let mut provided_this_stage = Vec::new();
 			providers.retain(|id, info| {
@@ -409,11 +405,11 @@ impl<K: SetupKey, S: IntoSystem<(), (), M>, M> IntoDependencyProvider<K, S, M>
 	for Provider<K, S, M>
 {
 	fn provides(mut self, keys: impl IntoIterator<Item = K>) -> Self {
-		self.provides.extend(keys.into_iter());
+		self.provides.extend(keys);
 		self
 	}
 	fn requires(mut self, keys: impl IntoIterator<Item = K>) -> Self {
-		self.requires.extend(keys.into_iter());
+		self.requires.extend(keys);
 		self
 	}
 }
@@ -467,14 +463,18 @@ impl From<bool> for Progress {
 /// ```
 impl<T> FromResidual<Option<T>> for Progress {
 	fn from_residual(val: Option<T>) -> Self {
-		if let Some(val) = val {
-			Self::DONE
+		if val.is_some() {
+			#[cfg(debug_assertions)]
+			{ unreachable!(); }
+			#[cfg(not(debug_assertions))]
+			{ Self::DONE }
 		} else {
 			Self::ZERO
 		}
 	}
 }
 
+#[allow(unused)] // Fields are specifically for debug output
 #[derive(Debug, Clone)]
 pub struct InvalidSetupGraph<K: SetupKey + Debug> {
 	unprovided: HashSet<K>,

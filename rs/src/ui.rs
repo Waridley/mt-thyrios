@@ -1,10 +1,8 @@
-use crate::ui::egui::{Layout, RichText, Rounding};
-use bevy::app::DynEq;
+use crate::ui::egui::{RichText, CornerRadius};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy::winit::WinitWindows;
 pub use bevy_egui::egui;
-use bevy_egui::egui::Align;
 use bevy_egui::{EguiContextSettings, EguiContexts};
 use egui_colors::{Colorix, tokens::ThemeColor};
 use std::any::Any;
@@ -65,7 +63,7 @@ pub fn setup_egui(
 			.chain(
 				ALL_SINGLE_COLOR_COLORIX_THEME_NAMES
 					.into_iter()
-					.zip(ALL_SINGLE_COLOR_COLORIX_THEMES.into_iter()),
+					.zip(ALL_SINGLE_COLOR_COLORIX_THEMES),
 			)
 			.collect(),
 	});
@@ -78,7 +76,7 @@ pub struct GameTheme {
 }
 
 impl GameTheme {
-	pub fn color_preset_picker(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+	pub fn color_preset_picker(&mut self, ui: &mut egui::Ui) {
 		let custom_themes = self.custom_themes.clone();
 		ui.horizontal(|ui| {
 			ui.vertical(|ui| {
@@ -117,7 +115,7 @@ const ALL_SINGLE_COLOR_COLORIX_THEMES: [[ThemeColor; 12]; 22] = [
 	[ThemeColor::Orange; 12],
 ];
 
-const ALL_SINGLE_COLOR_COLORIX_THEME_NAMES: [&'static str; 22] = [
+const ALL_SINGLE_COLOR_COLORIX_THEME_NAMES: [&str; 22] = [
 	"Gray", "EguiBlue", "Tomato", "Red", "Ruby", "Crimson", "Pink", "Plum", "Purple", "Violet",
 	"Iris", "Indigo", "Blue", "Cyan", "Teal", "Jade", "Green", "Grass", "Brown", "Bronze", "Gold",
 	"Orange",
@@ -126,7 +124,7 @@ const ALL_SINGLE_COLOR_COLORIX_THEME_NAMES: [&'static str; 22] = [
 pub fn menu_button(text: impl Into<RichText>) -> egui::Button<'static> {
 	egui::Button::new(text.into().strong().size(36.0))
 		.min_size([150.0, 50.0].into())
-		.rounding(Rounding::same(20))
+		.corner_radius(CornerRadius::same(20))
 }
 
 pub trait Menu: Any + Debug + Send + Sync + 'static {}
@@ -178,7 +176,7 @@ impl MenuStack {
 	/// in the stack. If one was already somewhere in the stack, it is brought to the top, and the
 	/// provided menu is returned in an `Err`.
 	pub fn push_to_top<T: Menu + Into<Box<dyn Menu>>>(&mut self, menu: T) -> Result<(), T> {
-		if let Some(existing) = self.bring_to_top::<T>() {
+		if self.bring_to_top::<T>().is_some() {
 			Err(menu)
 		} else {
 			self.stack.push(menu.into());
@@ -220,20 +218,12 @@ impl MenuStack {
 
 	/// Removes the topmost menu of type `T`.
 	pub fn remove_last<T: Menu>(&mut self) -> Option<Box<T>> {
-		if let Some(i) = self.stack.iter().rposition(|menu| menu.is::<T>()) {
-			Some(self.pull(i).downcast::<T>().unwrap())
-		} else {
-			None
-		}
+		self.stack.iter().rposition(|menu| menu.is::<T>()).map(|i| self.pull(i).downcast::<T>().unwrap())
 	}
 
 	/// Removes the bottommost menu of type `T`.
 	pub fn remove_first<T: Menu>(&mut self) -> Option<Box<T>> {
-		if let Some(i) = self.stack.iter().position(|menu| menu.is::<T>()) {
-			Some(self.pull(i).downcast::<T>().unwrap())
-		} else {
-			None
-		}
+		self.stack.iter().position(|menu| menu.is::<T>()).map(|i| self.pull(i).downcast::<T>().unwrap())
 	}
 
 	/// Removes all menus of type `T` from the stack.
@@ -297,6 +287,10 @@ impl MenuStack {
 
 	pub fn len(&self) -> usize {
 		self.stack.len()
+	}
+	
+	pub fn is_empty(&self) -> bool {
+		self.stack.is_empty()
 	}
 
 	/// Checks if the stack contains any menu of type `T`.

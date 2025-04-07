@@ -8,12 +8,9 @@ pub struct SettingsMenuPlugin;
 
 impl Plugin for SettingsMenuPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(Startup, setup_settings_menu)
-			.add_systems(Update, SettingsMenu::draw);
+		app.add_systems(Update, SettingsMenu::draw);
 	}
 }
-
-pub fn setup_settings_menu(mut commands: Commands) {}
 
 #[derive(Debug)]
 pub struct SettingsMenu {}
@@ -47,7 +44,7 @@ impl SettingsMenu {
 			.show(ctx, |ui| {
 				ui.heading("UI Theme");
 				ui.add_space(5.0);
-				theme.color_preset_picker(ctx, ui);
+				theme.color_preset_picker(ui);
 				ui.add_space(5.0);
 				ui.heading("UI Scale");
 				egui::Slider::new(&mut *zoom, 0.5..=8.0)

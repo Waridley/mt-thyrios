@@ -1,18 +1,15 @@
 use crate::dev_tools::setup_graph_vis::SetupGraphVisState;
-use crate::game::GameSetupKey;
 use crate::game::ocean::{OceanMaterial, OceanSurface, Storm};
+use crate::game::GameSetupKey;
 use crate::state::GlobalState;
 use crate::ui::egui::Align2;
 use bevy::{pbr::ExtendedMaterial, prelude::*};
 use bevy_console::{
-	AddConsoleCommand, BevyLogBuffer, ConsoleCommand, ConsoleConfiguration, ConsolePlugin, reply,
-	reply_failed,
+	reply, reply_failed, AddConsoleCommand, ConsoleCommand, ConsoleConfiguration,
+	ConsolePlugin,
 };
-use clap::builder::{PossibleValue, TypedValueParser};
-use clap::{Arg, Error, Parser, Subcommand};
-use std::ffi::OsStr;
-use std::marker::PhantomData;
-use std::num::ParseFloatError;
+use clap::builder::PossibleValue;
+use clap::{Parser, Subcommand};
 
 pub struct DevConsolePlugin;
 
@@ -94,7 +91,7 @@ pub struct SetLight {
 
 pub fn set_light(
 	mut command: ConsoleCommand<SetLight>,
-	mut q: Option<Single<&mut SpotLight, With<crate::game::cam::CamLight>>>,
+	q: Option<Single<&mut SpotLight, With<crate::game::cam::CamLight>>>,
 ) {
 	if let Some(Ok(cmd)) = command.take() {
 		let Some(mut q) = q else {
@@ -238,9 +235,7 @@ pub fn adjust_storm(mut command: ConsoleCommand<AdjustStorm>, mut storm: Option<
 			None => reply!(command, "{:?}", &**storm),
 			Some(GetSetStormValue::Intensity { value }) => {
 				if let Some(intensity) = value {
-					if let Some(intensity) = value {
-						storm.intensity = intensity;
-					}
+					storm.intensity = intensity;
 				}
 				reply!(command, "{:?}", storm.intensity);
 			}
@@ -316,12 +311,11 @@ pub fn set_visibility<C: SetVisibility>(
 		};
 		let mut found = false;
 		for (_, mut vis) in q.iter_mut().filter(|(name, _)| pat.matches(name.as_str())) {
-			cmd.set_visibility(&mut *vis);
+			cmd.set_visibility(&mut vis);
 			found = true;
 		}
 		if !found {
 			reply_failed!(command, "couldn't find entity matching {:?}", cmd.glob());
-			return;
 		};
 	}
 }

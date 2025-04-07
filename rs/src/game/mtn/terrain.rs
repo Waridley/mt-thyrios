@@ -1,11 +1,8 @@
-use crate::game::GameLoadingState;
 use crate::game::mtn::MountainAssets;
 use crate::new_game_setup_label;
 use crate::setup_tracking::{AssetCollection, Progress, assets_progress};
-use crate::state::GlobalState;
-use crate::state::GlobalState::InGame;
 use bevy::asset::{
-	Asset, AssetContainer, AssetServer, ErasedAssetLoader, Handle, ReflectAsset, UntypedAssetId,
+	Asset, AssetServer, Handle, ReflectAsset, UntypedAssetId,
 };
 use bevy::image::Image;
 use bevy::pbr::{MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline};
@@ -15,9 +12,8 @@ use bevy::render::render_resource::{
 	AsBindGroup, RenderPipelineDescriptor, ShaderDefVal, ShaderRef, SpecializedMeshPipelineError,
 	VertexFormat,
 };
-use enum_map::{Enum, EnumMap, enum_map};
+use enum_map::{Enum, EnumMap};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use strum::{EnumCount, FromRepr, VariantArray, VariantNames};
 
 new_game_setup_label!(TerrainTexturesStacked, StackedTerrainTextures::progress);
@@ -89,7 +85,7 @@ impl StackedTerrainTextures {
 }
 
 pub fn stack_terrain_textures(
-	mut srv: Res<AssetServer>,
+	srv: Res<AssetServer>,
 	map: Res<TexturesMap>,
 	mut images: ResMut<Assets<Image>>,
 	assets: Res<MountainAssets>,

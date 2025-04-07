@@ -1,6 +1,6 @@
 use crate::settings_menu::SettingsMenu;
 use crate::state::GlobalState;
-use crate::ui::egui::{RichText, Rounding, Widget};
+use crate::ui::egui::Widget;
 use crate::ui::{MenuStack, egui, menu_button};
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
@@ -24,7 +24,6 @@ pub fn setup_main_menu(mut cmds: Commands) {
 }
 
 pub fn draw_main_menu(
-	mut cmds: Commands,
 	mut contexts: EguiContexts,
 	mut next_state: ResMut<NextState<GlobalState>>,
 	mut exit_events: EventWriter<AppExit>,
@@ -51,7 +50,7 @@ pub fn draw_main_menu(
 					menu_stack.push_to_top(SettingsMenu {}).ok();
 				}
 				if menu_button("Quit").ui(ui).clicked() {
-					exit_events.send(AppExit::Success);
+					exit_events.write(AppExit::Success);
 				}
 			})
 		});

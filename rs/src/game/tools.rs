@@ -46,7 +46,7 @@ impl ActiveTool {
 			self.to_cleanup.push_back(self.tool.take().unwrap());
 			Ok(())
 		} else {
-			Err(self.tool.as_ref().map(|tool| &**tool))
+			Err(self.tool.as_deref())
 		}
 	}
 

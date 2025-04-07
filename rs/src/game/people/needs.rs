@@ -1,3 +1,4 @@
+#[allow(unused)] // Brainstorm, will use later
 pub struct Needs {
 	hunger: f32,
 	thirst: f32,

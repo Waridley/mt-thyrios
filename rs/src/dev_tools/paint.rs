@@ -1,70 +1,50 @@
 use crate::game::building::placement::{
-	MtnCursor, MtnCursorMaterial, MtnCursorQuery, new_intersection_depth_map,
+	new_intersection_depth_map, MtnCursor, MtnCursorMaterial, MtnCursorQuery,
 };
 use crate::ui::egui;
 use crate::util::{Aabb3dMeshBuilder, AssetMut};
 use crate::{
 	game::mtn::{
-		BvhContents, BvhNode, MeshGraph, MountainAssets, MountainPeak, MountainScene, Ray3dExt,
-		TriangleIndex, debug_find_triangle_intersected_by_ray, find_triangle_intersected_by_ray,
+		debug_find_triangle_intersected_by_ray, BvhContents, BvhNode, MeshGraph, MountainPeak,
+		Ray3dExt, TriangleIndex,
 	},
-	game::{GameLoadingState, GameSetupKey, GameSetupLabel},
 	game::{
 		mtn::terrain::{
-			ATTRIBUTE_TERRAIN_WEIGHTS_0_3, ATTRIBUTE_TERRAIN_WEIGHTS_4_7, TerrainKind,
-			TerrainTexturesStacked,
+			TerrainKind, ATTRIBUTE_TERRAIN_WEIGHTS_0_3,
+			ATTRIBUTE_TERRAIN_WEIGHTS_4_7,
 		},
-		mtn::{Mountain, MountainHydrated, MountainSceneSpawned},
-		tools::{ActiveTool, ReflectTool, Tool, active_tool_is},
+		mtn::{Mountain, MountainHydrated},
+		tools::{ActiveTool, ReflectTool, Tool},
 	},
-	setup_tracking::{self, IntoDependencyProvider, Progress, RegisterProvider},
+	game::GameSetupLabel,
+	setup_tracking::{self, IntoDependencyProvider, RegisterProvider},
 	state::GlobalState,
-	ui::egui::{Id, Ui},
-	util::{BorrowAssetMut, MeshExt, log_errors},
+	util::{BorrowAssetMut, MeshExt},
 };
-use bevy::asset::{AssetPath, RenderAssetUsages};
-use bevy::input::keyboard::KeyboardInput;
-use bevy::math::VectorSpace;
-use bevy::reflect::TypeRegistry;
 use bevy::render::mesh::MeshVertexAttribute;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::{
-	color::palettes::basic::YELLOW,
-	ecs::system::SystemId,
-	input::mouse::AccumulatedMouseMotion,
 	math::bounding::BoundingVolume,
-	picking::mesh_picking::ray_cast::{Backfaces, ray_mesh_intersection},
 	platform_support::collections::hash_map::HashMap,
 	prelude::*,
-	reflect::{FromType, GetTypeRegistration, TypeData},
-	render::mesh::allocator::MeshAllocatorSettings,
+	reflect::FromType,
 	render::mesh::{Indices, VertexAttributeValues},
-	render::render_resource::{Face, VertexFormat},
-	tasks::{AsyncComputeTaskPool, futures_lite},
+	render::render_resource::Face,
+	tasks::AsyncComputeTaskPool,
 	window::PrimaryWindow,
 };
-use bevy_egui::{EguiContext, EguiContexts};
+use bevy_egui::EguiContext;
 use bevy_inspector_egui::restricted_world_view::RestrictedWorldView;
 use bevy_inspector_egui::{
-	egui::emath::One,
-	inspector_egui_impls::InspectorPrimitive,
 	inspector_options::std_options::{NumberDisplay, NumberOptions},
-	inspector_options::{InspectorOptionsType, Target},
+	inspector_options::Target,
 	prelude::*,
-	quick::ResourceInspectorPlugin,
 	reflect_inspector::InspectorUi,
 };
-use enum_map::{EnumMap, enum_map};
-use gltf::Glb;
-use gltf::binary::Header;
-use gltf_json::validation::{self, Checked::Valid, USize64};
-use serde::Serialize;
-use smol::{fs::File, fs::OpenOptions, io::AsyncWriteExt, io::BufWriter};
-use std::ops::{Add, Div};
-use std::time::Instant;
+use enum_map::EnumMap;
+use smol::{fs::OpenOptions, io::AsyncWriteExt};
 use std::{
-	any::Any, borrow::Cow, cmp::Ordering, cmp::max, collections::BTreeMap, error::Error,
-	fmt::Debug, ops::RangeInclusive, path::Path, path::PathBuf, time::Duration,
+	borrow::Cow, cmp::Ordering, error::Error,
+	fmt::Debug, path::PathBuf, time::Duration,
 };
 use strum::{EnumCount, VariantArray};
 use tiny_bail::prelude::r;
@@ -167,7 +147,7 @@ pub fn paint_terrain(
 	let Some(brush) = tool.downcast_ref::<Paintbrush>() else {
 		if !save_timer.finished() {
 			let mesh_handle = mtn.0;
-			let mut mesh = r!(meshes.asset_mut(mesh_handle.id()));
+			let mesh = r!(meshes.asset_mut(mesh_handle.id()));
 			let dur = save_timer.duration();
 			save_timer.set_elapsed(dur);
 			save_timer.tick(dt); // Sets `finished`
@@ -178,7 +158,7 @@ pub fn paint_terrain(
 		return;
 	};
 
-	let window = r!(window.get_single());
+	let window = r!(window.single());
 
 	if keys.just_pressed(KeyCode::F7) {
 		*debug_bvh = !*debug_bvh;
@@ -212,7 +192,7 @@ pub fn paint_terrain(
 		let mut tris = Vec::new();
 		let hit = debug_find_triangle_intersected_by_ray(
 			ray,
-			&*mesh,
+			&mesh,
 			graph,
 			Some(Face::Back),
 			|node, depth| {
@@ -231,7 +211,7 @@ pub fn paint_terrain(
 			},
 		);
 		for idx in tris {
-			let tri = idx.triangle(&*mesh);
+			let tri = idx.triangle(&mesh);
 			let (color, offset) = if hit.unzip().0 == Some(idx) {
 				(
 					bevy::color::palettes::basic::LIME.into(),
@@ -247,9 +227,9 @@ pub fn paint_terrain(
 		}
 		hit
 	} else {
-		ray.find_intersected_triangle(&*mesh, graph, Some(Face::Back))
+		ray.find_intersected_triangle(&mesh, graph, Some(Face::Back))
 	} {
-		let tri = tri_idx.triangle(&*mesh);
+		let tri = tri_idx.triangle(&mesh);
 		let norm = tri.normal().unwrap();
 		let point = ray.origin + (ray.direction * t);
 		let rotation = match brush {
@@ -286,11 +266,9 @@ pub fn paint_terrain(
 				brush_global_pos,
 				*last_brush_global_pos,
 				ray,
-				tri_idx,
-				norm,
 				*xform,
-				&mut *painted_this_stroke,
-				&mut *sculpted_this_stroke,
+				&mut painted_this_stroke,
+				&mut sculpted_this_stroke,
 				weight_map.reborrow(),
 			)
 		}
@@ -316,14 +294,11 @@ fn bvh_gizmos(node: &BvhNode<TriangleIndex>, gizmos: &mut Gizmos, depth: usize) 
 		},
 		Color::hsv(((depth * 32) % 360) as f32, 1.0, 1.0),
 	);
-	match &node.contents {
-		BvhContents::Branch(subtrees) => {
-			for subtree in subtrees.iter() {
-				bvh_gizmos(subtree, gizmos, depth + 1);
-			}
-		}
-		_ => {}
-	}
+	if let BvhContents::Branch(subtrees) = &node.contents {
+    for subtree in subtrees.iter() {
+      bvh_gizmos(subtree, gizmos, depth + 1);
+    }
+  }
 }
 
 #[derive(Debug, Clone, Reflect, InspectorOptions)]
@@ -367,8 +342,6 @@ impl Paintbrush {
 		brush_global_pos: Isometry3d,
 		prev_brush_global_pos: Isometry3d,
 		ray: Ray3d,
-		hit_tri: TriangleIndex,
-		hit_normal: Dir3,
 		mesh_xform: GlobalTransform,
 		painted_this_stroke: &mut HashMap<usize, u16>,
 		sculpted_this_stroke: &mut HashMap<usize, Vec3>,
@@ -397,7 +370,7 @@ impl Paintbrush {
 				ref shape,
 				erase,
 			} => match shape {
-				BrushShape::Sphere { radius, .. } => {
+				BrushShape::Sphere {  .. } => {
 					let positions = mesh.positions().unwrap();
 					for (i, relative_point) in positions
 						.iter()
@@ -440,7 +413,7 @@ impl Paintbrush {
 				}
 			},
 			Paintbrush::Sculpt { shape, basis } => match shape {
-				BrushShape::Sphere { center, .. } => {
+				BrushShape::Sphere {  .. } => {
 					let n = mesh.positions().unwrap().len();
 					for i in 0..n {
 						let normal = Vec3::from_array(mesh.normals().unwrap()[i]);
@@ -483,16 +456,16 @@ impl Paintbrush {
 		let mut changed = false;
 		world.resource_scope::<ActiveTool, Option<()>>(|world: &mut World, mut tool| {
 			let mut q = world.query_filtered::<&mut EguiContext, With<PrimaryWindow>>();
-			let mut ctx = r!(q.get_single_mut(world)).clone();
-			let mut world = RestrictedWorldView::new(world);
-			let (mut reg, mut world) = r!(world.split_off_resource_typed::<AppTypeRegistry>());
+			let mut ctx = r!(q.single_mut(world)).clone();
+			let world = RestrictedWorldView::new(world);
+			let (reg, world) = r!(world.split_off_resource_typed::<AppTypeRegistry>());
 			let reg = r!(reg.internal.read().ok());
 			let ctx = ctx.get_mut();
 			let mut cx = bevy_inspector_egui::reflect_inspector::Context {
 				world: Some(world),
 				queue: None,
 			};
-			let mut inspector_ui = InspectorUi::new_no_short_circuit(&*reg, &mut cx);
+			let mut inspector_ui = InspectorUi::new_no_short_circuit(&reg, &mut cx);
 			{
 				let tool = tool.bypass_change_detection();
 				let brush = tool.downcast_mut::<Paintbrush>();
@@ -885,15 +858,12 @@ impl TerrainWeights {
 		mut events: EventReader<AssetEvent<Mesh>>,
 	) {
 		for ev in events.read() {
-			match ev {
-				AssetEvent::LoadedWithDependencies { id } => {
-					if *id == mtn_mesh.0.id() {
-						info!("Updating TerrainWeights because mesh was reloaded");
-						cmds.insert_resource(Self::from_mesh(meshes.get(*id).unwrap()));
-					}
-				}
-				_ => {}
-			}
+			if let AssetEvent::LoadedWithDependencies { id } = ev {
+        if *id == mtn_mesh.0.id() {
+          info!("Updating TerrainWeights because mesh was reloaded");
+          cmds.insert_resource(Self::from_mesh(meshes.get(*id).unwrap()));
+        }
+      }
 		}
 	}
 }
@@ -936,7 +906,7 @@ pub fn redistribute_weights(mut weight_map: ResMut<TerrainWeights>, tool: Res<Ac
 					}
 				});
 			} else {
-				weights.sort_by_key(|(kind, weight)| *weight)
+				weights.sort_by_key(|(_, weight)| *weight)
 			}
 			if rem > weights[0].1 as u64 {
 				sum -= weights[0].1 as u64;
@@ -987,7 +957,7 @@ pub fn apply_weights_to_mesh(
 			else {
 				unreachable!()
 			};
-			for j in 4..TerrainKind::COUNT as usize {
+			for j in 4..TerrainKind::COUNT {
 				weights[i][j - 4] = weight_map.map[TerrainKind::VARIANTS[j]][i];
 			}
 		}
@@ -1001,7 +971,7 @@ pub fn save_mtn_gltf(
 	meshes: Res<Assets<Mesh>>,
 ) {
 	let mesh = r!(meshes.get(&mtn.0)).clone();
-	let peak_xform = peak.clone();
+	let peak_xform = **peak;
 	AsyncComputeTaskPool::get()
 		.spawn(async move { r!(mtn_gltf_save_task(path.0, mesh, peak_xform).await) })
 		.detach();
@@ -1014,9 +984,9 @@ pub fn save_on_exit(
 	meshes: Res<Assets<Mesh>>,
 	mut exit_events: EventReader<AppExit>,
 ) {
-	if let Some(_) = exit_events.read().next() {
+	if exit_events.read().next().is_some() {
 		let mesh = r!(meshes.get(&mtn.0)).clone();
-		let peak_xform = peak.clone();
+		let peak_xform = **peak;
 		cmds.queue(move |_world: &mut World| {
 			r!(smol::block_on(mtn_gltf_save_task(
 				"../assets/terrain/mtn.glb".into(),
@@ -1048,14 +1018,11 @@ async fn mtn_gltf_save_task(
 	}
 
 	fn into_other_io_err(e: impl Into<Box<dyn Error + Send + Sync>>) -> std::io::Error {
-		std::io::Error::new(std::io::ErrorKind::Other, e)
+		std::io::Error::other(e)
 	}
 
 	fn attr_err(attr: &MeshVertexAttribute) -> std::io::Error {
-		std::io::Error::new(
-			std::io::ErrorKind::Other,
-			format!("invalid/missing {}", attr.name),
-		)
+		std::io::Error::other(format!("invalid/missing {}", attr.name))
 	}
 
 	let Some(VertexAttributeValues::Float32x3(positions)) =
@@ -1099,22 +1066,19 @@ async fn mtn_gltf_save_task(
 	let count = USize64::from(num_verts);
 
 	let Some(indices) = mesh.indices() else {
-		return Err(std::io::Error::new(
-			std::io::ErrorKind::Other,
-			"Mesh is missing indices",
-		));
+		return Err(std::io::Error::other("Mesh is missing indices"));
 	};
 	let indices_count = indices.len();
 	let (indices_stride, indices_type, indices_bytes): (_, _, &[u8]) = match indices {
 		Indices::U16(indices) => (
 			gltf_json::buffer::Stride(size_of::<u16>()),
 			gltf_json::accessor::GenericComponentType(gltf_json::accessor::ComponentType::U16),
-			bytemuck::cast_slice(&indices),
+			bytemuck::cast_slice(indices),
 		),
 		Indices::U32(indices) => (
 			gltf_json::buffer::Stride(size_of::<u32>()),
 			gltf_json::accessor::GenericComponentType(gltf_json::accessor::ComponentType::U32),
-			bytemuck::cast_slice(&indices),
+			bytemuck::cast_slice(indices),
 		),
 	};
 	let mut whole_buffer = Vec::with_capacity(vert_bytes.len() + indices_bytes.len());
