@@ -1,6 +1,6 @@
 use crate::ui::{GameTheme, Menu, MenuStack, egui};
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiContextSettings};
+use bevy_egui::{EguiContextSettings, EguiContexts};
 use egui::{Align2, Widget};
 use tiny_bail::prelude::r;
 

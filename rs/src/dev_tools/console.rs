@@ -312,7 +312,7 @@ pub fn set_visibility<C: SetVisibility>(
 			Err(e) => {
 				reply_failed!(command, "{e}");
 				return;
-			},
+			}
 		};
 		let mut found = false;
 		for (_, mut vis) in q.iter_mut().filter(|(name, _)| pat.matches(name.as_str())) {

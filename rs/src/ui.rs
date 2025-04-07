@@ -5,7 +5,7 @@ use bevy::window::PrimaryWindow;
 use bevy::winit::WinitWindows;
 pub use bevy_egui::egui;
 use bevy_egui::egui::Align;
-use bevy_egui::{EguiContexts, EguiContextSettings};
+use bevy_egui::{EguiContextSettings, EguiContexts};
 use egui_colors::{Colorix, tokens::ThemeColor};
 use std::any::Any;
 use std::fmt::Debug;
@@ -85,8 +85,7 @@ impl GameTheme {
 				// Hack to align dropdown with light/dark toggle button
 				// because horizontal_centered expands way too large
 				ui.add_space(7.0);
-				self.colorix
-					.themes_dropdown(ui, Some(custom_themes), false);
+				self.colorix.themes_dropdown(ui, Some(custom_themes), false);
 			});
 			self.colorix.light_dark_toggle_button(ui, 16.0);
 		});

@@ -2,8 +2,8 @@ use crate::game::GameSetupKey;
 use crate::setup_tracking::{SetupKey, SetupTracker};
 use crate::ui::egui::Ui;
 use bevy::ecs::system::SystemId;
-use bevy::prelude::*;
 use bevy::platform_support::collections::HashMap;
+use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::Color32;
 use egui_snarl::ui::{NodeLayout, PinInfo, SnarlStyle, SnarlViewer, WireStyle};
@@ -27,11 +27,11 @@ impl Plugin for SetupGraphVisPlugin {
 #[derive(Deref)]
 pub struct SetupGraphViewer<'a, K: SetupKey>(&'a SetupTracker<K>);
 
-impl<'a, K: SetupKey>  SetupGraphViewer<'a, K> {
+impl<'a, K: SetupKey> SetupGraphViewer<'a, K> {
 	pub fn key_color(&self, key: &K) -> Option<Color32> {
 		// Final outputs are white
 		self.dependants_of(key).next()?;
-		
+
 		let mut i = 0;
 		for (k, _) in self.entries().iter() {
 			if self.dependants_of(k).next().is_none() {
@@ -43,7 +43,7 @@ impl<'a, K: SetupKey>  SetupGraphViewer<'a, K> {
 			}
 			i += 1;
 		}
-		
+
 		Some(COLORS[i % COLORS.len()])
 	}
 }
@@ -182,9 +182,7 @@ pub fn visualize_setup_graph<K: SetupKey + Debug>(
 		node_layout: Some(NodeLayout::Sandwich),
 		pin_fill: Some(Color32::WHITE),
 		wire_width: Some(2.0),
-		wire_style: Some(WireStyle::AxisAligned {
-			corner_radius: 8.0,
-		}),
+		wire_style: Some(WireStyle::AxisAligned { corner_radius: 8.0 }),
 		bg_pattern_stroke: Some(bevy_egui::egui::Stroke {
 			width: 1.0,
 			color: Color32::BLACK,

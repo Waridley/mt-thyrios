@@ -34,13 +34,13 @@ use bevy::{
 	input::mouse::AccumulatedMouseMotion,
 	math::bounding::BoundingVolume,
 	picking::mesh_picking::ray_cast::{Backfaces, ray_mesh_intersection},
+	platform_support::collections::hash_map::HashMap,
 	prelude::*,
 	reflect::{FromType, GetTypeRegistration, TypeData},
 	render::mesh::allocator::MeshAllocatorSettings,
 	render::mesh::{Indices, VertexAttributeValues},
 	render::render_resource::{Face, VertexFormat},
 	tasks::{AsyncComputeTaskPool, futures_lite},
-	platform_support::collections::hash_map::HashMap,
 	window::PrimaryWindow,
 };
 use bevy_egui::{EguiContext, EguiContexts};
@@ -92,10 +92,7 @@ impl Plugin for TerrainPaintPlugin {
 					.provides([PaintingReady.intern()])
 					.requires([MountainHydrated.intern()]),
 			)
-			.add_systems(
-				First,
-				TerrainWeights::update_on_mesh_reloaded,
-			)
+			.add_systems(First, TerrainWeights::update_on_mesh_reloaded)
 			.add_systems(
 				Update,
 				(

@@ -2,8 +2,8 @@ use bevy::asset::UntypedAssetId;
 use bevy::ecs::query::QueryFilter;
 use bevy::ecs::schedule::{BoxedCondition, ScheduleConfigs};
 use bevy::ecs::system::{BoxedSystem, SystemId};
+use bevy::platform_support::collections::{HashMap, HashSet};
 use bevy::prelude::*;
-use bevy::platform_support::collections::{HashSet, HashMap};
 use nutype::nutype;
 use std::arch::x86_64::_CMP_FALSE_OQ;
 use std::borrow::Cow;
@@ -321,7 +321,8 @@ impl<K: SetupKey, S: IntoSystem<(), (), M> + 'static, M> Provider<K, S, M> {
 		} = self;
 		let name = name.unwrap_or_else(|| {
 			let full_name = std::any::type_name_of_val(&system);
-			let full_name: &'static str = if full_name.starts_with('<') && full_name.ends_with('>') {
+			let full_name: &'static str = if full_name.starts_with('<') && full_name.ends_with('>')
+			{
 				&full_name[1..full_name.len() - 2]
 			} else {
 				full_name
@@ -527,10 +528,7 @@ pub trait AssetCollection: Resource {
 	fn iter_ids(&self) -> impl Iterator<Item = UntypedAssetId>;
 }
 
-pub fn load_assets<C: AssetCollection + FromWorld>(
-	mut cmds: Commands,
-	collection: Option<Res<C>>,
-) {
+pub fn load_assets<C: AssetCollection + FromWorld>(mut cmds: Commands, collection: Option<Res<C>>) {
 	if collection.is_some() {
 		return;
 	}

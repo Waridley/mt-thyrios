@@ -5,7 +5,10 @@ use crate::game::{
 	GameLoadingState, GameSetupKey, GameSetupLabel, mtn::terrain::TerrainTexturesStacked,
 };
 use crate::new_game_setup_label;
-use crate::setup_tracking::{AssetCollection, IntoDependencyProvider, Progress, RegisterProvider, assets_progress, load_assets, single_spawn_progress, resource_progress};
+use crate::setup_tracking::{
+	AssetCollection, IntoDependencyProvider, Progress, RegisterProvider, assets_progress,
+	load_assets, resource_progress, single_spawn_progress,
+};
 use crate::state::GlobalState;
 use crate::util::{FinishedProcessing, GridMesh, MeshExt};
 use GlobalState::{InGame, LoadingGame};
@@ -22,14 +25,17 @@ use bevy::pbr::{
 	ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
 };
 use bevy::picking::mesh_picking::ray_cast::ray_aabb_intersection_3d;
+use bevy::platform_support::collections::HashSet;
 use bevy::prelude::*;
 use bevy::render::mesh::skinning::SkinnedMesh;
 use bevy::render::mesh::{
 	Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, VertexAttributeValues,
 };
-use bevy::render::render_resource::{AsBindGroup, Extent3d, Face, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError, TextureDimension, VertexFormat};
+use bevy::render::render_resource::{
+	AsBindGroup, Extent3d, Face, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
+	TextureDimension, VertexFormat,
+};
 use bevy::scene::SceneInstance;
-use bevy::platform_support::collections::HashSet;
 use smolset::SmolSet;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
@@ -65,16 +71,16 @@ impl Plugin for MountainPlugin {
 				cmds.init_resource::<StackedTerrainTextures>()
 			})
 			.register_provider(
-				load_assets::<MountainAssets>.provides([MtnAssetsInserted.intern(), MtnAssetsLoaded.intern()]),
+				load_assets::<MountainAssets>
+					.provides([MtnAssetsInserted.intern(), MtnAssetsLoaded.intern()]),
 			)
 			.register_provider(
 				process_mtn_assets
 					.requires([MtnAssetsLoaded.intern()])
-					.provides([MtnAssetsProcessed.intern()])
+					.provides([MtnAssetsProcessed.intern()]),
 			)
 			.register_provider(
-				load_assets::<TexturesMap>
-					.provides([TerrainTexturesLoaded.intern()]),
+				load_assets::<TexturesMap>.provides([TerrainTexturesLoaded.intern()]),
 			)
 			.register_provider(
 				spawn_mountain
@@ -131,10 +137,7 @@ new_game_setup_label!(MtnAssetsInserted, resource_progress::<MountainAssets>);
 new_game_setup_label!(MtnAssetsLoaded, assets_progress::<MountainAssets>);
 new_game_setup_label!(MtnAssetsProcessed, mtn_assets_process_progress);
 
-fn process_mtn_assets(
-	mut mtn_assets: ResMut<MountainAssets>,
-	mut images: ResMut<Assets<Image>>,
-) {
+fn process_mtn_assets(mut mtn_assets: ResMut<MountainAssets>, mut images: ResMut<Assets<Image>>) {
 	let img = rq!(images.get_mut(mtn_assets.terrain_textures.id()));
 	img.reinterpret_stacked_2d_as_array(6);
 	img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {

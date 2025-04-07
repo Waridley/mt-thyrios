@@ -18,8 +18,8 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::window::{PresentMode, PrimaryWindow};
-use std::path::PathBuf;
 use bevy_egui::EguiUserTextures;
+use std::path::PathBuf;
 
 #[cfg(feature = "dev_tools")]
 pub mod dev_tools;
