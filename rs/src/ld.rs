@@ -12,6 +12,13 @@ impl Plugin for LoadingScreenPlugin {
 				Update,
 				(update_progress_bar::<GameSetupKey>, update_spinner).run_if(in_state(LoadingGame)),
 			);
+		
+		#[cfg(feature = "dev_tools")]
+		{
+			app.add_systems(OnExit(LoadingGame), |mut cmds: Commands| {
+				cmds.remove_resource::<crate::dev_tools::setup_graph_vis::SetupGraphVisState<GameSetupKey>>();
+			});
+		}
 	}
 }
 
@@ -38,6 +45,11 @@ pub fn spawn_loading_screen(
 		MeshMaterial2d(mat),
 		StateScoped(LoadingGame),
 	));
+	
+	#[cfg(feature = "dev_tools")]
+	{
+		cmds.init_resource::<crate::dev_tools::setup_graph_vis::SetupGraphVisState::<GameSetupKey>>();
+	}
 }
 
 pub fn update_progress_bar<K: SetupKey>(
