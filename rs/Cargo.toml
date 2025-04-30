@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A colony survival sim set on a gradually flooding mountain."
 edition = "2024"
 authors = ["Waridley"]
+rust-version = "1.86.0"
 
 [features]
 dev_tools = [
@@ -23,14 +24,11 @@ skip_splash = []
 [dependencies.bevy]
 version = "0.16.0-rc"
 
-[patch.crates-io]
-bevy_egui = { version = "0.33.0", git = "https://github.com/slyedoc/bevy_egui", branch = "bevy_0.16" }
-
 [dependencies]
-bevy_egui = { version = "0.33.0", features = ["serde"] }
+bevy_egui = { version = "0.34.0", features = ["serde"] }
 #bevy_hanabi = "0.16.0"
 #bevy-steamworks = { version = "0.13.0", git = "https://github.com/eero-lehtinen/bevy_steamworks.git", branch = "bevy-16" }
-leafwing-input-manager = { version = "0.16.0", features = ["egui"], git = "https://github.com/leafwing-studios/leafwing-input-manager.git" }
+leafwing-input-manager = { version = "0.16.0", git = "https://github.com/leafwing-studios/leafwing-input-manager.git" }
 
 bytemuck = "1.20.0"
 enum-map = { version = "3.0.0-beta.2", features = ["serde"] }

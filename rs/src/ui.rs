@@ -19,7 +19,9 @@ pub const SCALE_STEP: f64 = 0.25;
 impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
 		app.init_resource::<MenuStack>()
-			.add_plugins(bevy_egui::EguiPlugin)
+			.add_plugins(bevy_egui::EguiPlugin {
+				enable_multipass_for_primary_context: false,
+			})
 			.add_systems(PostStartup, setup_egui);
 	}
 }

@@ -6,7 +6,7 @@ use bevy::asset::{
 	AssetLoader, AsyncWriteExt, RenderAssetUsages, UntypedAssetId,
 };
 use bevy::gltf::{GltfLoader, GltfLoaderSettings, GltfMesh, GltfNode};
-use bevy::platform_support::collections::HashMap;
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, MeshVertexAttribute};
 use bevy::render::render_resource::VertexFormat;

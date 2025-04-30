@@ -19,7 +19,7 @@ use bevy::math::bounding::{
 	Aabb3d, Bounded3d, BoundingVolume, IntersectsVolume, RayCast3d,
 };
 use bevy::pbr::ExtendedMaterial;
-use bevy::platform_support::collections::HashSet;
+use bevy::platform::collections::HashSet;
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::render_resource::Face;

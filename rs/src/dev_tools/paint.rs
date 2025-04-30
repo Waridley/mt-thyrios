@@ -24,7 +24,7 @@ use crate::{
 use bevy::render::mesh::MeshVertexAttribute;
 use bevy::{
 	math::bounding::BoundingVolume,
-	platform_support::collections::hash_map::HashMap,
+	platform::collections::hash_map::HashMap,
 	prelude::*,
 	reflect::FromType,
 	render::mesh::{Indices, VertexAttributeValues},

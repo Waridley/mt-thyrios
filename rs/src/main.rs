@@ -90,7 +90,7 @@ fn main() -> AppExit {
 	#[cfg(feature = "dev_tools")]
 	app.add_plugins((
 		bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
-		bevy::pbr::wireframe::WireframePlugin,
+		bevy::pbr::wireframe::WireframePlugin::default(),
 	));
 	app.add_plugins(TemporalAntiAliasPlugin);
 

@@ -2,7 +2,7 @@ use crate::game::GameSetupKey;
 use crate::setup_tracking::{SetupKey, SetupTracker};
 use crate::ui::egui::Ui;
 use bevy::ecs::system::SystemId;
-use bevy::platform_support::collections::HashMap;
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::Color32;

@@ -481,27 +481,6 @@ pub fn single_entity_exists<F: QueryFilter>(q: Option<Single<(), F>>) -> bool {
 	q.is_some()
 }
 
-pub trait IntoSetupStep<M, F> {
-	fn setup_done_when<CM>(
-		self,
-		done_condition: impl Condition<CM>,
-	) -> ScheduleConfigs<ScheduleSystem>;
-}
-
-impl<M, F> IntoSetupStep<M, F> for F
-where
-	F: SystemParamFunction<M, In = (), Out = ()> + Sized,
-	M: 'static,
-{
-	fn setup_done_when<CM>(
-		self,
-		done_condition: impl Condition<CM>,
-	) -> ScheduleConfigs<ScheduleSystem> {
-		// FIXME: never param warn, was moved to global in 0.16
-		self.run_if(not(done_condition))
-	}
-}
-
 mod asset_mut {
 	use bevy::asset::{Asset, AssetId, Assets};
 	use bevy::prelude::{Mut, ResMut};

@@ -1,7 +1,7 @@
 use bevy::asset::UntypedAssetId;
 use bevy::ecs::query::QueryFilter;
 use bevy::ecs::system::SystemId;
-use bevy::platform_support::collections::{HashMap, HashSet};
+use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use nutype::nutype;
 use std::borrow::Cow;
