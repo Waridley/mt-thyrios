@@ -2,3 +2,6 @@
 	path = vend/bevy-console
 	url = git@github.com:Waridley/bevy-console.git
 	branch = custom
+[submodule "vend/bird_barrier"]
+	path = vend/bird_barrier
+	url = https://github.com/Waridley/bird_barrier.git
