@@ -117,6 +117,6 @@ fn main() -> AppExit {
 	app.run()
 }
 
-pub fn setup(mut window: Single<&mut Window, With<PrimaryWindow>>) {
+pub fn setup(mut cmds: Commands, mut window: Single<&mut Window, With<PrimaryWindow>>) {
 	window.present_mode = PresentMode::AutoNoVsync;
 }

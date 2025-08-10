@@ -4,7 +4,7 @@ use crate::ui::egui::Ui;
 use bevy::ecs::system::SystemId;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
-use bevy_egui::EguiContexts;
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 use bevy_egui::egui::Color32;
 use egui_snarl::ui::{NodeLayout, PinInfo, SnarlPin, SnarlStyle, SnarlViewer, WireStyle};
 use egui_snarl::{InPin, InPinId, NodeId, OutPin, OutPinId, Snarl};
@@ -18,9 +18,12 @@ impl Plugin for SetupGraphVisPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(
 			PreUpdate,
-			sync_snarl::<GameSetupKey>.run_if(resource_exists::<SetupGraphVisState<GameSetupKey>>),
+			(
+				sync_snarl::<GameSetupKey>.run_if(resource_exists::<SetupGraphVisState<GameSetupKey>>),
+				spawn_setup_graph_vis,
+			),
 		)
-		.add_systems(Update, visualize_setup_graph::<GameSetupKey>);
+		.add_systems(EguiPrimaryContextPass, visualize_setup_graph::<GameSetupKey>);
 	}
 }
 
@@ -177,7 +180,7 @@ pub fn visualize_setup_graph<K: SetupKey + Debug>(
 	mut ctx: EguiContexts,
 	mut state: Option<ResMut<SetupGraphVisState<K>>>,
 ) {
-	let ctx = r!(ctx.try_ctx_mut());
+	let ctx = r!(ctx.ctx_mut());
 	let style = SnarlStyle {
 		node_layout: Some(NodeLayout::Sandwich),
 		pin_fill: Some(Color32::WHITE),
@@ -209,5 +212,11 @@ pub fn visualize_setup_graph<K: SetupKey + Debug>(
 	});
 	if !open {
 		cmds.remove_resource::<SetupGraphVisState<K>>();
+	}
+}
+
+pub fn spawn_setup_graph_vis(mut cmds: Commands, keys: Res<ButtonInput<KeyCode>>) {
+	if keys.just_pressed(KeyCode::KeyG) {
+		cmds.init_resource::<SetupGraphVisState<GameSetupKey>>();
 	}
 }

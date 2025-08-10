@@ -21,6 +21,6 @@ pub enum GlobalState {
 	#[cfg_attr(feature = "skip_splash", default)]
 	MainMenu,
 	LoadingGame,
-	#[cfg_attr(feature = "dev_tools", value(skip))]
+	#[cfg_attr(feature = "dev_tools", value(skip))] // Prevent entering InGame without loading
 	InGame,
 }

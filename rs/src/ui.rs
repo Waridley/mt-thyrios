@@ -3,10 +3,11 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy::winit::WinitWindows;
 pub use bevy_egui::egui;
-use bevy_egui::{EguiContextSettings, EguiContexts};
+use bevy_egui::{EguiContext, EguiContextSettings, EguiContexts, EguiPrimaryContextPass, PrimaryEguiContext};
 use egui_colors::{Colorix, tokens::ThemeColor};
 use std::any::Any;
 use std::fmt::Debug;
+use bevy::render::camera::Viewport;
 use tiny_bail::prelude::r;
 
 pub struct UiPlugin;
@@ -19,17 +20,14 @@ pub const SCALE_STEP: f64 = 0.25;
 impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
 		app.init_resource::<MenuStack>()
-			.add_plugins(bevy_egui::EguiPlugin {
-				enable_multipass_for_primary_context: false,
-			})
+			.add_plugins(bevy_egui::EguiPlugin::default())
 			.add_systems(PostStartup, setup_egui);
 	}
 }
 
 pub fn setup_egui(
 	mut cmds: Commands,
-	mut contexts: EguiContexts,
-	mut settings: Single<&mut EguiContextSettings>,
+	// mut contexts: EguiContexts,
 	window: Single<Entity, With<PrimaryWindow>>,
 	winit_windows: NonSend<WinitWindows>,
 ) {
@@ -41,34 +39,54 @@ pub fn setup_egui(
 		.map(|size| ((size.height / (DESIGN_HEIGHT * SCALE_STEP)).ceil() * SCALE_STEP) as f32)
 		.unwrap_or(DEFAULT_SCALE);
 	debug!(scale, ?size);
-	settings.scale_factor = scale;
-	let ctx = r!(contexts.try_ctx_mut());
-	ctx.set_theme(egui::Theme::Dark);
-	let waridley_theme = [
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x80, 0xff, 0x40]),
-		ThemeColor::Custom([0x80, 0xff, 0x40]),
-		ThemeColor::Custom([0x80, 0xff, 0x40]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-		ThemeColor::Custom([0x8c, 0x00, 0xff]),
-	];
-	let colorix = Colorix::global(ctx, DEFAULT_THEME);
-	cmds.insert_resource(GameTheme {
-		colorix,
-		custom_themes: std::iter::once(("Waridley", waridley_theme))
-			.chain(
-				ALL_SINGLE_COLOR_COLORIX_THEME_NAMES
-					.into_iter()
-					.zip(ALL_SINGLE_COLOR_COLORIX_THEMES),
-			)
-			.collect(),
-	});
+	// let ctx = r!(contexts.ctx_mut());
+	
+	// We can't assume the camera exists outside of EguiPrimaryContextPass,
+	// but I want to do this exactly once at startup
+	let mut ctx = EguiContext::default();
+	{
+		let ctx = ctx.get_mut();
+		ctx.set_theme(egui::Theme::Dark);
+		let waridley_theme = [
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x80, 0xff, 0x40]),
+			ThemeColor::Custom([0x80, 0xff, 0x40]),
+			ThemeColor::Custom([0x80, 0xff, 0x40]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+			ThemeColor::Custom([0x8c, 0x00, 0xff]),
+		];
+		let colorix = Colorix::global(ctx, DEFAULT_THEME);
+		cmds.insert_resource(GameTheme {
+			colorix,
+			custom_themes: std::iter::once(("Waridley", waridley_theme))
+				.chain(
+					ALL_SINGLE_COLOR_COLORIX_THEME_NAMES
+						.into_iter()
+						.zip(ALL_SINGLE_COLOR_COLORIX_THEMES),
+				)
+				.collect(),
+		});
+	}
+	cmds.spawn((
+		Camera2d,
+		PrimaryEguiContext,
+		ctx,
+		EguiContextSettings {
+			scale_factor: scale,
+			..default()
+		},
+		// Camera {
+		// 	order: 1,
+		// 	clear_color: ClearColorConfig::None,
+		// 	..default()
+		// }
+	));
 }
 
 #[derive(Resource, Debug)]

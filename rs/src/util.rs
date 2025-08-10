@@ -1,7 +1,6 @@
 use crate::game::mtn::Mountain;
 use bevy::ecs::query::QueryFilter;
-use bevy::ecs::schedule::ScheduleConfigs;
-use bevy::ecs::system::{ScheduleSystem, SystemParam};
+use bevy::ecs::system::SystemParam;
 use bevy::gltf::GltfMesh;
 use bevy::math::Vec3A;
 use bevy::math::bounding::Aabb3d;

@@ -3,7 +3,7 @@ use crate::state::GlobalState;
 use crate::ui::{Menu, MenuCommandsExt, MenuStack, menu_button};
 use bevy::prelude::*;
 use bevy_egui::egui::{Align2, Widget};
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 // use bevy_steamworks::Input;
 use tiny_bail::prelude::r;
 
@@ -13,11 +13,9 @@ impl Plugin for PausePlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(
 			Update,
-			(
-				PauseMenu::draw,
-				PauseMenu::toggle_on_escape.run_if(in_state(GlobalState::InGame)),
-			),
-		);
+			PauseMenu::toggle_on_escape.run_if(in_state(GlobalState::InGame)),
+		)
+		.add_systems(EguiPrimaryContextPass, PauseMenu::draw);
 	}
 }
 
@@ -60,7 +58,7 @@ impl PauseMenu {
 		mut exit_events: EventWriter<AppExit>,
 		mut menu_stack: ResMut<MenuStack>,
 	) {
-		let ctx = r!(contexts.try_ctx_mut());
+		let ctx = r!(contexts.ctx_mut());
 
 		let was_open = menu_stack.contains::<Self>();
 		let mut open = was_open;

@@ -5,6 +5,7 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
+use bevy_egui::input::EguiWantsInput;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use console::DevConsolePlugin;
 use setup_graph_vis::SetupGraphVisPlugin;
@@ -36,7 +37,12 @@ pub fn toggles(
 	keys: Res<ButtonInput<KeyCode>>,
 	q: Option<Single<Entity, With<FpsText>>>,
 	mut wireframe: ResMut<WireframeConfig>,
+	egui_wants_input: Res<EguiWantsInput>,
 ) {
+	if egui_wants_input.wants_any_keyboard_input() {
+		return;
+	}
+	
 	if keys.just_pressed(KeyCode::F10) {
 		if let Some(entity) = q {
 			cmds.entity(*entity).despawn();
@@ -67,7 +73,12 @@ pub fn adjust_storm(
 	mut ocean: Single<&mut Transform, With<OceanSurface>>,
 	keys: Res<ButtonInput<KeyCode>>,
 	t: Res<Time>,
+	egui_wants_input: Res<EguiWantsInput>,
 ) {
+	if egui_wants_input.wants_any_keyboard_input() {
+		return;
+	}
+	
 	let mut incr = 0.0;
 	if keys.pressed(KeyCode::Equal) {
 		incr += t.delta_secs();

@@ -87,7 +87,7 @@ rustflags = [
 
     # Nightly
      "-Zshare-generics=y",
-     "-Zthreads=0",
+#     "-Zthreads=0", # broken on nightly as of 2025-08-07 https://github.com/rust-lang/rust/issues/141540
 ]
 # Some systems may experience linker performance issues when running doc tests.
 # See https://github.com/bevyengine/bevy/issues/12207 for details.

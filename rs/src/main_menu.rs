@@ -3,7 +3,7 @@ use crate::state::GlobalState;
 use crate::ui::egui::Widget;
 use crate::ui::{MenuStack, egui, menu_button};
 use bevy::prelude::*;
-use bevy_egui::EguiContexts;
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, PrimaryEguiContext};
 use egui::Align2;
 use tiny_bail::prelude::r;
 
@@ -13,14 +13,14 @@ impl Plugin for MainMenuPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(OnEnter(GlobalState::MainMenu), setup_main_menu)
 			.add_systems(
-				Update,
+				EguiPrimaryContextPass,
 				draw_main_menu.run_if(in_state(GlobalState::MainMenu)),
 			);
 	}
 }
 
 pub fn setup_main_menu(mut cmds: Commands) {
-	cmds.spawn((Camera2d, StateScoped(GlobalState::MainMenu)));
+	// cmds.spawn((Camera2d, PrimaryEguiContext, StateScoped(GlobalState::MainMenu)));
 }
 
 pub fn draw_main_menu(
@@ -29,7 +29,7 @@ pub fn draw_main_menu(
 	mut exit_events: EventWriter<AppExit>,
 	mut menu_stack: ResMut<MenuStack>,
 ) {
-	let ctx = r!(contexts.try_ctx_mut());
+	let ctx = r!(contexts.ctx_mut());
 	egui::Window::new("Main Menu")
 		.anchor(Align2::CENTER_CENTER, [0.0, 0.0])
 		.collapsible(false)

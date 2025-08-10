@@ -4,7 +4,7 @@ use crate::ui::egui::{Align2, Color32};
 use bevy::log::{BoxedLayer, tracing_subscriber};
 use bevy::prelude::*;
 use bevy_console::ConsoleConfiguration;
-use bevy_egui::EguiContexts;
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 use std::sync::mpmc;
 use std::sync::mpmc::TryRecvError;
 use tiny_bail::prelude::r;
@@ -13,10 +13,8 @@ pub struct LogViewPlugin;
 
 impl Plugin for LogViewPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(
-			Update,
-			(LogViewBuffer::recv_logs, LogViewBuffer::draw).chain(),
-		);
+		app.add_systems(Update, LogViewBuffer::recv_logs)
+			.add_systems(EguiPrimaryContextPass, LogViewBuffer::draw);
 	}
 }
 
@@ -97,8 +95,8 @@ impl LogViewBuffer {
 		keys: Res<ButtonInput<KeyCode>>,
 		mut open: Local<bool>,
 	) {
-		let ctx = r!(contexts.try_ctx_mut());
-		if keys.just_pressed(KeyCode::KeyL) {
+		let ctx = r!(contexts.ctx_mut());
+		if !ctx.wants_keyboard_input() && keys.just_pressed(KeyCode::KeyL) {
 			*open = !*open;
 		}
 

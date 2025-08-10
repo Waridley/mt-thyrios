@@ -32,7 +32,7 @@ use bevy::{
 	tasks::AsyncComputeTaskPool,
 	window::PrimaryWindow,
 };
-use bevy_egui::EguiContext;
+use bevy_egui::{EguiContext, input::EguiWantsInput, EguiPrimaryContextPass, PrimaryEguiContext};
 use bevy_inspector_egui::restricted_world_view::RestrictedWorldView;
 use bevy_inspector_egui::{
 	inspector_options::std_options::{NumberDisplay, NumberOptions},
@@ -79,11 +79,11 @@ impl Plugin for TerrainPaintPlugin {
 					paint_terrain,
 					(redistribute_weights, apply_weights_to_mesh)
 						.run_if(resource_exists_and_changed::<TerrainWeights>),
-					Paintbrush::draw_ui,
 					Paintbrush::open_close,
 				)
 					.run_if(in_state(GlobalState::InGame)),
 			)
+			.add_systems(EguiPrimaryContextPass, Paintbrush::draw_ui)
 			.add_systems(Last, save_on_exit)
 			.add_systems(OnExit(GlobalState::InGame), |mut cmds: Commands| {
 				cmds.remove_resource::<TerrainWeights>()
@@ -108,6 +108,7 @@ pub fn paint_terrain(
 	mut gizmos: Gizmos,
 	keys: Res<ButtonInput<KeyCode>>,
 	t: Res<Time>,
+	egui_wants_input: Res<EguiWantsInput>,
 	(
 		mut last_brush_global_pos,
 		mut painted_this_stroke,
@@ -160,11 +161,13 @@ pub fn paint_terrain(
 
 	let window = r!(window.single());
 
-	if keys.just_pressed(KeyCode::F7) {
-		*debug_bvh = !*debug_bvh;
-	}
-	if keys.just_pressed(KeyCode::F8) {
-		*debug_raycast = !*debug_raycast;
+	if !egui_wants_input.wants_any_keyboard_input() {
+		if keys.just_pressed(KeyCode::F7) {
+			*debug_bvh = !*debug_bvh;
+		}
+		if keys.just_pressed(KeyCode::F8) {
+			*debug_raycast = !*debug_raycast;
+		}
 	}
 
 	let (mesh_handle, xform, graph) = *mtn;
@@ -455,7 +458,7 @@ impl Paintbrush {
 	pub fn draw_ui(world: &mut World) {
 		let mut changed = false;
 		world.resource_scope::<ActiveTool, Option<()>>(|world: &mut World, mut tool| {
-			let mut q = world.query_filtered::<&mut EguiContext, With<PrimaryWindow>>();
+			let mut q = world.query_filtered::<&mut EguiContext, With<PrimaryEguiContext>>();
 			let mut ctx = r!(q.single_mut(world)).clone();
 			let world = RestrictedWorldView::new(world);
 			let (reg, world) = r!(world.split_off_resource_typed::<AppTypeRegistry>());
@@ -498,10 +501,11 @@ impl Paintbrush {
 		mut mats: ResMut<Assets<MtnCursorMaterial>>,
 		mut images: ResMut<Assets<Image>>,
 		last_brush: Option<Res<LastPaintbrush>>,
+		egui_wants_input: Res<EguiWantsInput>,
 	) {
 		let is_active = tool.is::<Paintbrush>();
 
-		if !is_active && keys.just_pressed(KeyCode::KeyP) {
+		if !is_active && !egui_wants_input.wants_any_keyboard_input() && keys.just_pressed(KeyCode::KeyP) {
 			let brush = last_brush.map(|last| last.0.clone()).unwrap_or_default();
 			tool.open(brush);
 		} else if is_active && mouse.just_pressed(MouseButton::Right) {

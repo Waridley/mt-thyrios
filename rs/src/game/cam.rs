@@ -1,3 +1,4 @@
+use bevy::asset::RenderAssetUsages;
 use super::mtn::{Mountain, MountainHydrated, MountainPeak};
 use crate::game::GameSetupLabel;
 use crate::new_game_setup_label;
@@ -7,6 +8,9 @@ use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasing;
 use bevy::core_pipeline::prepass::DepthPrepass;
 use bevy::prelude::*;
+use bevy::render::camera::{ImageRenderTarget, RenderTarget};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor};
+use bevy_egui::PrimaryEguiContext;
 
 new_game_setup_label!(CameraSpawned, single_spawn_progress::<With<Camera3d>>);
 
@@ -31,9 +35,39 @@ pub fn setup_cam(
 	mut cmds: Commands,
 	peak: Single<Entity, With<MountainPeak>>,
 	mtn: Single<&Mountain>,
+	mut images: ResMut<Assets<Image>>,
+	mut meshes: ResMut<Assets<Mesh>>,
+	mut mats: ResMut<Assets<ColorMaterial>>,
 ) {
 	let slope = mtn.slope;
 	let anchor_z = slope * mtn.plateau_radius;
+
+	// Workaround for https://github.com/bevyengine/bevy/issues/12121
+	// Might want to keep a separate render target anyway for graphics quality options, but will
+	// need a better way to dynamically adjust it to window size and user preference.
+	let mut render_target = Image::new_fill(
+		Extent3d {
+			width: 2560,
+			height: 1440,
+			depth_or_array_layers: 1,
+		},
+		TextureDimension::D2,
+		&[0; 4],
+		TextureFormat::Rgba8UnormSrgb,
+		RenderAssetUsages::all(),
+	);
+	render_target.texture_descriptor.usage = TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING;
+	let render_target = images.add(render_target);
+	let _view_3d = cmds.spawn((
+		Mesh2d(meshes.add(Rectangle::new(2560.0, 1440.0).mesh())),
+		MeshMaterial2d(mats.add(ColorMaterial {
+			texture: Some(render_target.clone()),
+			..default()
+		})),
+		StateScoped(InGame),
+	));
+	let render_target = RenderTarget::Image(render_target.into());
+	
 	cmds.entity(*peak).with_children(|cmds| {
 		cmds.spawn((CamAnchor, Transform::from_translation(Vec3::Z * anchor_z)))
 			.with_children(|cmds| {
@@ -57,6 +91,7 @@ pub fn setup_cam(
 							clear_color: ClearColorConfig::Custom(Color::BLACK),
 							is_active: false,
 							hdr: true,
+							target: render_target,
 							..default()
 						},
 						Projection::Perspective(PerspectiveProjection {

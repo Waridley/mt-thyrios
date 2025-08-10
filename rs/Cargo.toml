@@ -22,10 +22,10 @@ track_changes = ["bevy/track_location"]
 skip_splash = []
 
 [dependencies.bevy]
-version = "0.16.0-rc"
+version = "0.16.0"
 
 [dependencies]
-bevy_egui = { version = "0.34.0", features = ["serde"] }
+bevy_egui = { version = "0.35.0", features = ["serde"] }
 #bevy_hanabi = "0.16.0"
 #bevy-steamworks = { version = "0.13.0", git = "https://github.com/eero-lehtinen/bevy_steamworks.git", branch = "bevy-16" }
 leafwing-input-manager = { version = "0.17.1" }
@@ -44,7 +44,7 @@ thiserror = "2.0.11"
 tiny_bail = { version = "0.4.3", default-features = false, features = ["tracing", "error"] }
 
 # Dev tools
-bevy-inspector-egui = { version = "0.30.0", optional = true, git = "https://github.com/slyedoc/bevy-inspector-egui.git", branch = "bevy_0.16" }
+bevy-inspector-egui = { version = "0.32.0", optional = true }
 bevy_console = { package = "waridley_bevy_console", version = "0.13.1", path = "../vend/bevy-console", optional = true }
 clap = { version = "4.5", optional = true, features = ["cargo"] }
 disqualified = { version = "1.0.0", optional = true }

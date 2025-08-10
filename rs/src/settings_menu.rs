@@ -1,6 +1,6 @@
 use crate::ui::{GameTheme, Menu, MenuStack, egui};
 use bevy::prelude::*;
-use bevy_egui::{EguiContextSettings, EguiContexts};
+use bevy_egui::{EguiContextSettings, EguiContexts, EguiPrimaryContextPass};
 use egui::{Align2, Widget};
 use tiny_bail::prelude::r;
 
@@ -8,7 +8,7 @@ pub struct SettingsMenuPlugin;
 
 impl Plugin for SettingsMenuPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(Update, SettingsMenu::draw);
+		app.add_systems(EguiPrimaryContextPass, SettingsMenu::draw);
 	}
 }
 
@@ -20,7 +20,7 @@ impl Menu for SettingsMenu {}
 impl SettingsMenu {
 	pub fn draw(
 		mut contexts: EguiContexts,
-		mut theme: ResMut<GameTheme>,
+		mut theme: Option<ResMut<GameTheme>>,
 		mut egui_settings: Single<&mut EguiContextSettings>,
 		mut zoom: Local<f32>,
 		mut menu_stack: ResMut<MenuStack>,
@@ -28,7 +28,7 @@ impl SettingsMenu {
 		if *zoom < 0.5 {
 			*zoom = egui_settings.scale_factor;
 		}
-		let ctx = r!(contexts.try_ctx_mut());
+		let ctx = r!(contexts.ctx_mut());
 
 		let was_open = menu_stack.contains::<Self>();
 		let mut open = was_open;
@@ -44,7 +44,9 @@ impl SettingsMenu {
 			.show(ctx, |ui| {
 				ui.heading("UI Theme");
 				ui.add_space(5.0);
-				theme.color_preset_picker(ui);
+				if let Some(mut theme) = theme {
+					theme.color_preset_picker(ui);
+				}
 				ui.add_space(5.0);
 				ui.heading("UI Scale");
 				egui::Slider::new(&mut *zoom, 0.5..=8.0)
