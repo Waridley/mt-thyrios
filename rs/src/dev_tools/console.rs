@@ -1,4 +1,4 @@
-use crate::dev_tools::setup_graph_vis::SetupGraphVisState;
+use bird_barrier::{open_setup_graph_window, SetupGraphVisState};
 use crate::game::ocean::{OceanMaterial, OceanSurface, Storm};
 use crate::game::GameSetupKey;
 use crate::state::GlobalState;
@@ -76,7 +76,7 @@ pub struct ViewSetupGraph {}
 
 pub fn view_setup_graph(mut cmd: ConsoleCommand<ViewSetupGraph>, mut cmds: Commands) {
 	if let Some(Ok(_)) = cmd.take() {
-		cmds.init_resource::<SetupGraphVisState<GameSetupKey>>();
+		cmds.run_system_cached(open_setup_graph_window::<GameSetupKey>);
 	}
 }
 

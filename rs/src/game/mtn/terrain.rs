@@ -1,6 +1,6 @@
 use crate::game::mtn::MountainAssets;
 use crate::new_game_setup_label;
-use crate::setup_tracking::{AssetCollection, Progress, assets_progress};
+use bird_barrier::{AssetCollection, Progress, assets_progress};
 use bevy::asset::{
 	Asset, AssetServer, Handle, ReflectAsset, UntypedAssetId,
 };

@@ -17,7 +17,7 @@ use crate::{
 		tools::{ActiveTool, ReflectTool, Tool},
 	},
 	game::GameSetupLabel,
-	setup_tracking::{self, IntoDependencyProvider, RegisterProvider},
+	
 	state::GlobalState,
 	util::{BorrowAssetMut, MeshExt},
 };
@@ -40,6 +40,7 @@ use bevy_inspector_egui::{
 	prelude::*,
 	reflect_inspector::InspectorUi,
 };
+use bird_barrier::{IntoDependencyProvider, RegisterProvider};
 use enum_map::EnumMap;
 use smol::{fs::OpenOptions, io::AsyncWriteExt};
 use std::{
@@ -53,7 +54,7 @@ pub struct TerrainPaintPlugin;
 
 crate::new_game_setup_label!(
 	PaintingReady,
-	setup_tracking::resource_progress::<TerrainWeights>
+	bird_barrier::resource_progress::<TerrainWeights>
 );
 
 impl Plugin for TerrainPaintPlugin {
@@ -69,8 +70,8 @@ impl Plugin for TerrainPaintPlugin {
 			.register_type::<BrushEaseFn>()
 			.register_provider(
 				setup_painting
-					.provides([PaintingReady.intern()])
-					.requires([MountainHydrated.intern()]),
+					.provides([PaintingReady.key()])
+					.requires([MountainHydrated.key()]),
 			)
 			.add_systems(First, TerrainWeights::update_on_mesh_reloaded)
 			.add_systems(

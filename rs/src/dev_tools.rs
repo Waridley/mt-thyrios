@@ -8,12 +8,13 @@ use bevy::prelude::*;
 use bevy_egui::input::EguiWantsInput;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use console::DevConsolePlugin;
-use setup_graph_vis::SetupGraphVisPlugin;
+use bird_barrier::{toggle_setup_graph_window, SetupGraphVisualizationPlugin};
+use crate::game::GameSetupKey;
 
 pub mod console;
 pub mod log_view;
 pub mod paint;
-pub mod setup_graph_vis;
+// pub mod setup_graph_vis;
 
 pub struct ToolsPlugin;
 
@@ -23,7 +24,7 @@ impl Plugin for ToolsPlugin {
 			paint::TerrainPaintPlugin,
 			WorldInspectorPlugin::new().run_if(input_toggle_active(false, KeyCode::KeyI)),
 			DevConsolePlugin,
-			SetupGraphVisPlugin,
+			SetupGraphVisualizationPlugin::<GameSetupKey>::default(),
 		))
 		.add_systems(
 			Update,
@@ -44,6 +45,7 @@ pub fn toggles(
 	}
 	
 	if keys.just_pressed(KeyCode::F10) {
+		info!("Toggling FPS text");
 		if let Some(entity) = q {
 			cmds.entity(*entity).despawn();
 		} else {
@@ -51,7 +53,12 @@ pub fn toggles(
 		}
 	}
 	if keys.just_pressed(KeyCode::F9) {
+		info!("Toggling wireframes");
 		wireframe.global = !wireframe.global;
+	}
+	if keys.just_pressed(KeyCode::KeyG) {
+		info!("Toggling setup graph window");
+		cmds.run_system_cached(toggle_setup_graph_window::<GameSetupKey>);
 	}
 }
 

@@ -22,7 +22,6 @@ pub mod game;
 pub mod ld;
 pub mod main_menu;
 pub mod settings_menu;
-pub mod setup_tracking;
 pub mod splash;
 pub mod state;
 // pub mod steam;

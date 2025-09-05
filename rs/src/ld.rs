@@ -1,5 +1,5 @@
 use crate::game::GameSetupKey;
-use crate::setup_tracking::{SetupKey, SetupTracker};
+use bird_barrier::{SetupKey, SetupTracker};
 use crate::state::GlobalState::LoadingGame;
 use bevy::prelude::*;
 use bevy_egui::PrimaryEguiContext;
@@ -17,7 +17,7 @@ impl Plugin for LoadingScreenPlugin {
 		#[cfg(feature = "dev_tools")]
 		{
 			app.add_systems(OnExit(LoadingGame), |mut cmds: Commands| {
-				cmds.remove_resource::<crate::dev_tools::setup_graph_vis::SetupGraphVisState<GameSetupKey>>();
+				cmds.remove_resource::<bird_barrier::SetupGraphVisState<GameSetupKey>>();
 			});
 		}
 	}

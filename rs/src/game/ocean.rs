@@ -1,7 +1,7 @@
 use crate::game::cam::CamAnchor;
 use crate::game::GameSetupLabel;
 use crate::new_game_setup_label;
-use crate::setup_tracking::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
+use bird_barrier::{IntoDependencyProvider, RegisterProvider, single_spawn_progress};
 use crate::state::GlobalState;
 use crate::util::{GridMesh, MeshExt};
 use GlobalState::InGame;
@@ -29,7 +29,7 @@ impl Plugin for OceanPlugin {
 		>::default())
 			.register_asset_reflect::<ExtendedMaterial<StandardMaterial, OceanMaterial>>()
 			.insert_resource(Storm { intensity: 0.2 })
-			.register_provider(setup_ocean.provides([OceanSpawned.intern()]))
+			.register_provider(setup_ocean.provides([OceanSpawned.key()]))
 			.add_systems(
 				Update,
 				(

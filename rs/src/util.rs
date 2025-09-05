@@ -447,7 +447,7 @@ pub fn make_new_gltf_scenes_z_up(
 
 /// Returns a system that calls [Commands::set_state]. This lets the condition for moving to the
 /// next state be clear at the point of configuring a schedule, rather than within the body of some
-/// system.
+/// arbitrary system.
 ///
 /// ```
 /// # use bevy::prelude::App;
@@ -463,10 +463,10 @@ pub fn make_new_gltf_scenes_z_up(
 ///         .run_if(in_state(MyStates::Loading).and(resource_exists::<MyAssets>)),
 /// );
 /// ```
-pub fn set_state_to<S: FreelyMutableState>(state: S) -> impl System<In = (), Out = ()> {
-	IntoSystem::into_system(move |mut cmds: Commands| {
+pub fn set_state_to<S: FreelyMutableState>(state: S) -> impl FnMut(Commands) {
+	move |mut cmds: Commands| {
 		cmds.set_state(state.clone());
-	})
+	}
 }
 
 /// A run condition that returns `true` if at least one entity matches filter `F`.

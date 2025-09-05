@@ -2,7 +2,7 @@ use bevy::asset::RenderAssetUsages;
 use super::mtn::{Mountain, MountainHydrated, MountainPeak};
 use crate::game::GameSetupLabel;
 use crate::new_game_setup_label;
-use crate::setup_tracking::{single_spawn_progress, IntoDependencyProvider, RegisterProvider};
+use bird_barrier::{single_spawn_progress, IntoDependencyProvider, RegisterProvider};
 use crate::state::GlobalState::{self, InGame};
 use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasing;
@@ -24,8 +24,8 @@ impl Plugin for GameCamPlugin {
 			// .insert_resource(DefaultOpaqueRendererMethod::deferred())
 			.register_provider(
 				setup_cam
-					.provides([CameraSpawned.intern()])
-					.requires([MountainHydrated.intern()]),
+					.provides([CameraSpawned.key()])
+					.requires([MountainHydrated.key()]),
 			)
 			.add_systems(OnEnter(InGame), activate_cam);
 	}

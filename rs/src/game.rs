@@ -1,7 +1,6 @@
-use crate::setup_tracking::{Progress, SetupKey, SetupTrackingPlugin};
+use bird_barrier::{Progress, SetupKey, SetupTrackingPlugin};
 use crate::state::GlobalState;
 use crate::state::GlobalState::InGame;
-use crate::util::set_state_to;
 use GlobalState::LoadingGame;
 use bevy::ecs::define_label;
 use bevy::ecs::intern::Interned;
@@ -25,9 +24,9 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins((
-			SetupTrackingPlugin::<GameSetupKey, _, _, _>::new(
+			SetupTrackingPlugin::<GameSetupKey, _, _, _, _>::new(
 				in_state(LoadingGame),
-				set_state_to(InGame),
+				|mut cmds: Commands| cmds.set_state(InGame),
 			),
 			building::BuildingPlugin,
 			cam::GameCamPlugin,
@@ -57,12 +56,18 @@ define_label!(
 	extra_methods: {
 		fn register_progress_checker(&self, world: &mut World) -> SystemId<(), Progress>;
 		fn relative_time_estimate(&self) -> f32 { 1.0 }
+		fn key(self) -> GameSetupKey where Self: Sized {
+			GameSetupKey(self.intern())
+		}
 	},
 	extra_methods_impl: {
 		fn register_progress_checker(&self, world: &mut World) -> SystemId<(), Progress> {
 		self.0.register_progress_checker(world)
 	}
 		fn relative_time_estimate(&self) -> f32 { self.0.relative_time_estimate() }
+		fn key(self) -> GameSetupKey {
+			GameSetupKey(self)
+		}
 	}
 );
 
@@ -76,7 +81,7 @@ macro_rules! new_game_setup_label {
 			fn register_progress_checker(
 				&self,
 				world: &mut World,
-			) -> ::bevy::ecs::system::SystemId<(), $crate::setup_tracking::Progress> {
+			) -> ::bevy::ecs::system::SystemId<(), bird_barrier::Progress> {
 				world.register_system($progress)
 			}
 
@@ -97,9 +102,10 @@ macro_rules! new_game_setup_label {
 	};
 }
 
-pub type GameSetupKey = Interned<dyn GameSetupLabel>;
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct GameSetupKey(Interned<dyn GameSetupLabel>);
 
-impl SetupKey for Interned<dyn GameSetupLabel> {
+impl SetupKey for GameSetupKey {
 	fn register_progress_checker(&self, world: &mut World) -> SystemId<(), Progress> {
 		self.0.register_progress_checker(world)
 	}

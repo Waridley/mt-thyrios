@@ -5,7 +5,7 @@ use crate::game::{
 	GameLoadingState, GameSetupLabel, mtn::terrain::TerrainTexturesStacked,
 };
 use crate::new_game_setup_label;
-use crate::setup_tracking::{
+use bird_barrier::{
 	AssetCollection, IntoDependencyProvider, Progress, RegisterProvider, assets_progress,
 	load_assets, resource_progress, single_spawn_progress,
 };
@@ -58,30 +58,30 @@ impl Plugin for MountainPlugin {
 			})
 			.register_provider(
 				load_assets::<MountainAssets>
-					.provides([MtnAssetsInserted.intern(), MtnAssetsLoaded.intern()]),
+					.provides([MtnAssetsInserted.key(), MtnAssetsLoaded.key()]),
 			)
 			.register_provider(
 				process_mtn_assets
-					.requires([MtnAssetsLoaded.intern()])
-					.provides([MtnAssetsProcessed.intern()]),
+					.requires([MtnAssetsLoaded.key()])
+					.provides([MtnAssetsProcessed.key()]),
 			)
 			.register_provider(
-				load_assets::<TexturesMap>.provides([TerrainTexturesLoaded.intern()]),
+				load_assets::<TexturesMap>.provides([TerrainTexturesLoaded.key()]),
 			)
 			.register_provider(
 				spawn_mountain
-					.provides([MountainSceneSpawned.intern()])
-					.requires([MtnAssetsInserted.intern()]),
+					.provides([MountainSceneSpawned.key()])
+					.requires([MtnAssetsInserted.key()]),
 			)
 			.register_provider(
 				stack_terrain_textures
-					.provides([TerrainTexturesStacked.intern()])
-					.requires([TerrainTexturesLoaded.intern()]),
+					.provides([TerrainTexturesStacked.key()])
+					.requires([TerrainTexturesLoaded.key()]),
 			)
 			.register_provider(
 				setup_mountain
-					.provides([MountainHydrated.intern()])
-					.requires([MountainSceneSpawned.intern()]),
+					.provides([MountainHydrated.key()])
+					.requires([MountainSceneSpawned.key()]),
 			)
 			.add_systems(OnExit(InGame), |mut cmds: Commands| {
 				cmds.remove_resource::<MountainAssets>();
@@ -137,8 +137,12 @@ fn mtn_assets_process_progress(
 	mtn_assets: Option<ResMut<MountainAssets>>,
 	images: Res<Assets<Image>>,
 ) -> Progress {
-	let mtn_assets = mtn_assets?;
-	let img = images.get(mtn_assets.terrain_textures.id())?;
+	let Some(mtn_assets) = mtn_assets else {
+		return Progress::ZERO;
+	};
+	let Some(img) = images.get(mtn_assets.terrain_textures.id()) else {
+		return Progress::ZERO;
+	};
 	if img.texture_descriptor.size.depth_or_array_layers > 1 {
 		Progress::DONE
 	} else {
