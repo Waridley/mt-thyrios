@@ -1,8 +1,8 @@
 use crate::game::GameSetupKey;
-use bird_barrier::{SetupKey, SetupTracker};
 use crate::state::GlobalState::LoadingGame;
 use bevy::prelude::*;
 use bevy_egui::PrimaryEguiContext;
+use bird_barrier::{SetupKey, SetupTracker};
 
 pub struct LoadingScreenPlugin;
 
@@ -13,7 +13,7 @@ impl Plugin for LoadingScreenPlugin {
 				Update,
 				(update_progress_bar::<GameSetupKey>, update_spinner).run_if(in_state(LoadingGame)),
 			);
-		
+
 		#[cfg(feature = "dev_tools")]
 		{
 			app.add_systems(OnExit(LoadingGame), |mut cmds: Commands| {
@@ -52,7 +52,7 @@ pub fn update_progress_bar<K: SetupKey>(
 	mut bar: Single<&mut Transform, With<LoadingProgressBar>>,
 	tracker: Res<SetupTracker<K>>,
 ) {
-	bar.translation.x = (*tracker.last_progress() * 960.0) - 480.0;
+	bar.translation.x = (*tracker.last_total_progress() * 960.0) - 480.0;
 }
 
 pub fn update_spinner(mut spinner: Single<&mut Transform, With<LoadingSpinner>>, t: Res<Time>) {

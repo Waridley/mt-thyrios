@@ -506,7 +506,8 @@ mod asset_mut {
 		}
 
 		#[cfg(feature = "track_changes")]
-		pub fn changed_by(&self) -> &std::panic::Location {
+		pub fn changed_by(&self) -> bevy::ecs::change_detection::MaybeLocation {
+			use bevy::prelude::DetectChanges;
 			self.assets.changed_by()
 		}
 	}

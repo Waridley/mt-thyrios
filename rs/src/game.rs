@@ -1,4 +1,3 @@
-use bird_barrier::{Progress, SetupKey, SetupTrackingPlugin};
 use crate::state::GlobalState;
 use crate::state::GlobalState::InGame;
 use GlobalState::LoadingGame;
@@ -6,6 +5,7 @@ use bevy::ecs::define_label;
 use bevy::ecs::intern::Interned;
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
+use bird_barrier::{Progress, SetupKey, SetupTrackingPlugin};
 use std::hash::Hash;
 
 pub mod building;
@@ -116,7 +116,9 @@ impl SetupKey for GameSetupKey {
 }
 
 #[cfg(feature = "track_changes")]
-pub fn debug_changed_state<S: FreelyMutableState>(next: Option<Res<NextState<S>>>) {
+pub fn debug_changed_state<S: bevy::state::state::FreelyMutableState>(
+	next: Option<Res<NextState<S>>>,
+) {
 	if let Some(global) = next {
 		if global.is_changed() {
 			info!(?global, "GlobalState changed: {}", global.changed_by());
